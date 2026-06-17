@@ -579,6 +579,7 @@ function LobbyScreen({
   const cat = CONTENT.categories.find((c) => c.id === room.category);
   const latestPendingInvite = pendingInvites[0];
   const inviteUrl = inviteUrlFor(room.code, latestPendingInvite?.token);
+  const [inviteeName, setInviteeName] = useState("");
 
   return (
     <div style={screenWrap}>
@@ -624,7 +625,22 @@ function LobbyScreen({
           <Pill text={cat?.label} accent={cat?.accent} />
         </div>
 
-        <Button variant="ghost" onClick={onInvite}>
+        {isHost && (
+          <TextField
+            value={inviteeName}
+            onChange={setInviteeName}
+            placeholder="Invitee name"
+            maxLength={24}
+            ariaLabel="Invitee name"
+          />
+        )}
+        <Button
+          variant="ghost"
+          onClick={() => {
+            onInvite(inviteeName);
+            setInviteeName("");
+          }}
+        >
           Create invite
         </Button>
         <div style={qrPanel}>
@@ -650,9 +666,11 @@ function LobbyScreen({
               <div key={invite.id} style={inviteRow}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 13 }}>
-                    Invite {invite.token.slice(0, 6)}
+                    {invite.invitee_name || `Invite ${invite.token.slice(0, 6)}`}
                   </div>
-                  <div style={linkText}>{inviteUrlFor(room.code, invite.token)}</div>
+                  <div style={mutedSmallText}>
+                    Pending invite created {new Date(invite.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
                   <button onClick={() => onCopyInvite(invite)} style={miniBtn}>Copy</button>
@@ -1066,6 +1084,13 @@ const linkText = {
   overflowWrap: "anywhere",
 };
 
+const mutedSmallText = {
+  color: "#9C97AE",
+  fontFamily: "'Manrope', sans-serif",
+  fontSize: 12,
+  lineHeight: 1.35,
+};
+
 const scorePanel = {
   marginTop: 14,
   background: "rgba(255,255,255,0.05)",
@@ -1368,13 +1393,14 @@ export default function App() {
       .eq("code", roomCode);
   }
 
-  async function handleInvite() {
+  async function handleInvite(inviteeName = "") {
     if (!roomCode) return;
     let token = randomInviteToken();
+    const label = inviteeName.trim();
     if (invitesSupported) {
       const { data, error } = await supabase
         .from("room_invites")
-        .insert({ room_code: roomCode, token, created_by: me?.id || null })
+        .insert({ room_code: roomCode, token, invitee_name: label || null, created_by: me?.id || null })
         .select()
         .single();
       if (error) {

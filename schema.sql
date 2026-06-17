@@ -30,6 +30,7 @@ create table room_invites (
   id uuid primary key default gen_random_uuid(),
   room_code text references rooms(code) on delete cascade,
   token text unique not null,
+  invitee_name text,
   status text not null default 'pending',          -- pending | used | canceled
   created_by uuid references players(id) on delete set null,
   used_by uuid references players(id) on delete set null,
