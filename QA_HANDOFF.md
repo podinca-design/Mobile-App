@@ -51,7 +51,7 @@ in the literal sense.
    start the game and the room lingers in the database forever. Decide on
    and implement a reasonable behavior (e.g. host-leaves reassigns to next
    player; rooms older than N hours get purged via a cron/Edge Function).
-2. **No reconnect/offline handling beyond sessionStorage.** If a player's
+2. **No reconnect/offline handling beyond local room restore.** If a player's
    phone loses signal mid-game, there's no visible "reconnecting…" state or
    retry logic on the Supabase Realtime subscription — confirm what
    actually happens (does the channel auto-resubscribe? does the UI hang?).
@@ -77,7 +77,7 @@ could not)
   starts game → take several turns across both devices → confirm card flip,
   prompt text, and turn handoff all sync correctly and promptly.
 - Background one phone mid-game (press home button, wait 30s, reopen) —
-  confirm sessionStorage-based session restore actually works and the
+  confirm localStorage-based session restore actually works and the
   player doesn't get dropped from the game.
 - Test with iOS VoiceOver and Android TalkBack on for at least the
   create-room and in-game flows — confirm the `aria-live` additions

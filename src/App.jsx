@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const SESSION_KEY = "td_session";
 
 const supabase = hasSupabaseConfig ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -224,7 +225,7 @@ function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus
 
 // ---- Screens -------------------------------------------------------------
 
-function HomeScreen({ onCreate, onJoin }) {
+function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall }) {
   const [joinCode, setJoinCode] = useState("");
   const [mode, setMode] = useState("home"); // home | join
 
@@ -249,6 +250,10 @@ function HomeScreen({ onCreate, onJoin }) {
             <Button variant="outline" accent="#9C97AE" onClick={() => setMode("join")}>
               Join with a code
             </Button>
+            <Button variant="ghost" onClick={onInstall}>
+              {canInstall ? "Install app" : "How to install"}
+            </Button>
+            {installStatus && <div style={hintText}>{installStatus}</div>}
           </div>
         )}
 
@@ -840,6 +845,8 @@ export default function App() {
   const [players, setPlayers] = useState([]);
   const [actionInFlight, setActionInFlight] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installStatus, setInstallStatus] = useState("");
 
   // Restore session on mount (handles phone lock / tab reload mid-game)
   useEffect(() => {
@@ -850,7 +857,7 @@ export default function App() {
         setView("join");
         return;
       }
-      const saved = sessionStorage.getItem("td_session");
+      const saved = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
       if (saved) {
         const { roomCode: savedRoom, me: savedMe } = JSON.parse(saved);
         if (savedRoom && savedMe) {
@@ -867,12 +874,35 @@ export default function App() {
   useEffect(() => {
     if (roomCode && me) {
       try {
-        sessionStorage.setItem("td_session", JSON.stringify({ roomCode, me }));
+        const session = JSON.stringify({ roomCode, me });
+        localStorage.setItem(SESSION_KEY, session);
+        sessionStorage.setItem(SESSION_KEY, session);
       } catch (e) {
         // ignore storage errors
       }
     }
   }, [roomCode, me]);
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setInstallStatus("Install this app on your home screen for quick room re-entry.");
+    }
+
+    function handleInstalled() {
+      setInstallPrompt(null);
+      setInstallStatus("Installed. Open it from your home screen any time.");
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
 
   // Load fonts once
   useEffect(() => {
@@ -984,6 +1014,18 @@ export default function App() {
     }
   }
 
+  async function handleInstall() {
+    if (installPrompt) {
+      installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      setInstallPrompt(null);
+      setInstallStatus(choice.outcome === "accepted" ? "Installing..." : "Install dismissed. You can try again later.");
+      return;
+    }
+
+    setInstallStatus("On iPhone: Share, then Add to Home Screen. On Android: browser menu, then Install app.");
+  }
+
   async function handleAction(action, kind) {
     if (actionInFlight) return; // guard against rapid double-tap firing duplicate writes
     setActionInFlight(true);
@@ -1032,7 +1074,8 @@ export default function App() {
     setMe(null);
     setInviteStatus("");
     try {
-      sessionStorage.removeItem("td_session");
+      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
     } catch (e) {
       // ignore
     }
@@ -1050,6 +1093,9 @@ export default function App() {
           setJoinCode(code);
           setView("join");
         }}
+        onInstall={handleInstall}
+        installStatus={installStatus}
+        canInstall={Boolean(installPrompt)}
       />
     );
   }
