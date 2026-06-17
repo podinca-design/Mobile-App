@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://qqpoxsiwoyokpbihwngj.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxcG94c2l3b3lva3BiaWh3bmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NzIyMDQsImV4cCI6MjA5NzI0ODIwNH0.20SJCjCXPb-ys4myn3wB_yD3ySwJVS5hvSZ8IH6lF9c";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = hasSupabaseConfig ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // ---- Content bank ----------------------------------------------------
 const CONTENT = {
@@ -178,15 +178,17 @@ function Button({ children, onClick, variant = "solid", accent = "#34D6B0", disa
   );
 }
 
-function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus, center }) {
+function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus, center, ariaLabel, id }) {
   return (
     <input
+      id={id}
       autoFocus={autoFocus}
       value={value}
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={(e) => e.key === "Enter" && onEnter && onEnter()}
       placeholder={placeholder}
+      aria-label={ariaLabel || placeholder}
       style={{
         width: "100%",
         background: "rgba(255,255,255,0.06)",
@@ -200,7 +202,6 @@ function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus
         textAlign: center ? "center" : "left",
         textTransform: center ? "uppercase" : "none",
         color: "#F4F2FA",
-        outline: "none",
         boxSizing: "border-box",
       }}
     />
@@ -239,10 +240,18 @@ function HomeScreen({ onCreate, onJoin }) {
 
         {mode === "join" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <label
+              htmlFor="join-code-input"
+              style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#9C97AE", letterSpacing: "0.08em", marginBottom: -4, fontFamily: "'Manrope', sans-serif" }}
+            >
+              ROOM CODE
+            </label>
             <TextField
+              id="join-code-input"
               value={joinCode}
               onChange={(v) => setJoinCode(v.toUpperCase().slice(0, 4))}
               placeholder="CODE"
+              ariaLabel="4-letter room code"
               maxLength={4}
               center
               autoFocus
@@ -260,6 +269,22 @@ function HomeScreen({ onCreate, onJoin }) {
             </Button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ConfigScreen() {
+  return (
+    <div style={screenWrap}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 18 }}>
+        <div style={eyebrow}>SUPABASE CONFIG REQUIRED</div>
+        <h1 style={heroTitle}>
+          Truth<span style={{ color: "#FF5A4E" }}>/</span>Dare
+        </h1>
+        <p style={{ color: "#D8D3E6", fontSize: 15, lineHeight: 1.55, fontFamily: "'Manrope', sans-serif", margin: 0 }}>
+          Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the existing demo Supabase project before running or deploying this branch.
+        </p>
       </div>
     </div>
   );
@@ -316,8 +341,8 @@ function CreateRoomScreen({ onRoomCreated, onBack }) {
           <h2 style={sectionTitle}>Set up the room</h2>
         </div>
 
-        <Field label="Your name">
-          <TextField value={name} onChange={setName} placeholder="What should we call you?" autoFocus maxLength={20} />
+        <Field label="Your name" htmlFor="create-name">
+          <TextField id="create-name" value={name} onChange={setName} placeholder="What should we call you?" autoFocus maxLength={20} />
         </Field>
 
         <Field label="Game mode">
@@ -404,7 +429,9 @@ function JoinRoomScreen({ code, onJoined, onBack }) {
           <div style={eyebrow}>JOINING ROOM {code}</div>
           <h2 style={sectionTitle}>What's your name?</h2>
         </div>
-        <TextField value={name} onChange={setName} placeholder="Your name" autoFocus maxLength={20} onEnter={handleJoin} />
+        <Field label="Your name" htmlFor="join-name">
+          <TextField id="join-name" value={name} onChange={setName} placeholder="Your name" autoFocus maxLength={20} onEnter={handleJoin} />
+        </Field>
         {error && <div style={{ color: "#FF5A4E", fontSize: 13, fontFamily: "'Manrope', sans-serif" }}>{error}</div>}
         <Button accent="#34D6B0" disabled={!name.trim() || busy} onClick={handleJoin}>
           {busy ? "Joining…" : "Join room"}
@@ -467,7 +494,7 @@ function LobbyScreen({ room, players, me, onStart, onLeave }) {
   );
 }
 
-function GameScreen({ room, players, me, onAction }) {
+function GameScreen({ room, players, me, onAction, busy }) {
   const cat = CONTENT.categories.find((c) => c.id === room.category);
   const currentPlayer = players[room.current_player_index % players.length];
   const isMyTurn = currentPlayer?.id === me.id;
@@ -492,14 +519,14 @@ function GameScreen({ room, players, me, onAction }) {
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 28 }}>
-        <div style={{ textAlign: "center" }}>
+        <div style={{ textAlign: "center" }} aria-live="polite">
           <div style={eyebrow}>{isMyTurn ? "YOUR TURN" : "CURRENT TURN"}</div>
           <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "'Sora', sans-serif", color: accent }}>
             {currentPlayer?.name}
           </div>
         </div>
 
-        <div style={{ perspective: 1200, width: "100%", maxWidth: 340, height: 220 }}>
+        <div style={{ perspective: 1200, width: "100%", maxWidth: 340, height: 220 }} role="region" aria-label="Current prompt card">
           <div
             style={{
               width: "100%",
@@ -512,6 +539,8 @@ function GameScreen({ room, players, me, onAction }) {
             }}
           >
             <div
+              aria-live="assertive"
+              aria-atomic="true"
               style={{
                 position: "absolute",
                 inset: 0,
@@ -535,7 +564,7 @@ function GameScreen({ room, players, me, onAction }) {
                   </div>
                 </div>
               ) : (
-                <div style={{ color: "#6B677A", fontFamily: "'Manrope', sans-serif", fontSize: 15 }}>
+                <div style={{ color: "#807C92", fontFamily: "'Manrope', sans-serif", fontSize: 15 }}>
                   {isMyTurn ? "Pick truth or dare below" : "Waiting for their pick…"}
                 </div>
               )}
@@ -547,18 +576,18 @@ function GameScreen({ room, players, me, onAction }) {
       <div style={{ paddingBottom: 18 }}>
         {isMyTurn && !hasPrompt && room.game_mode === "truth_dare" && (
           <div style={{ display: "flex", gap: 12 }}>
-            <Button accent="#34D6B0" onClick={() => onAction("draw", "truth")}>Truth</Button>
-            <Button accent="#FF5A4E" onClick={() => onAction("draw", "dare")}>Dare</Button>
+            <Button accent="#34D6B0" disabled={busy} onClick={() => onAction("draw", "truth")}>Truth</Button>
+            <Button accent="#FF5A4E" disabled={busy} onClick={() => onAction("draw", "dare")}>Dare</Button>
           </div>
         )}
         {isMyTurn && !hasPrompt && room.game_mode === "questions" && (
-          <Button accent={accent} onClick={() => onAction("draw", "question")}>Draw a question</Button>
+          <Button accent={accent} disabled={busy} onClick={() => onAction("draw", "question")}>Draw a question</Button>
         )}
         {isMyTurn && hasPrompt && (
-          <Button accent={accent} onClick={() => onAction("next")}>Done — next player</Button>
+          <Button accent={accent} disabled={busy} onClick={() => onAction("next")}>Done — next player</Button>
         )}
         {!isMyTurn && (
-          <div style={{ textAlign: "center", color: "#6B677A", fontSize: 13, fontFamily: "'Manrope', sans-serif" }}>
+          <div style={{ textAlign: "center", color: "#807C92", fontSize: 13, fontFamily: "'Manrope', sans-serif" }}>
             {currentPlayer?.name} is up
           </div>
         )}
@@ -569,12 +598,15 @@ function GameScreen({ room, players, me, onAction }) {
 
 // ---- Small reusable pieces -----------------------------------------------
 
-function Field({ label, children }) {
+function Field({ label, children, htmlFor }) {
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#9C97AE", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "'Manrope', sans-serif" }}>
+      <label
+        htmlFor={htmlFor}
+        style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#9C97AE", letterSpacing: "0.08em", marginBottom: 8, fontFamily: "'Manrope', sans-serif" }}
+      >
         {label.toUpperCase()}
-      </div>
+      </label>
       {children}
     </div>
   );
@@ -587,6 +619,7 @@ function SegmentedControl({ options, value, onChange }) {
         <button
           key={opt.id}
           onClick={() => onChange(opt.id)}
+          aria-pressed={value === opt.id}
           style={{
             flex: 1,
             padding: "12px 10px",
@@ -612,6 +645,7 @@ function CategoryChip({ label, accent, active, onClick }) {
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       style={{
         flex: 1,
         padding: "12px 8px",
@@ -670,7 +704,7 @@ const eyebrow = {
   fontSize: 11.5,
   fontWeight: 800,
   letterSpacing: "0.18em",
-  color: "#6B677A",
+  color: "#807C92",
   fontFamily: "'Manrope', sans-serif",
   marginBottom: 6,
 };
@@ -729,6 +763,7 @@ export default function App() {
   const [me, setMe] = useState(null);
   const [room, setRoom] = useState(null);
   const [players, setPlayers] = useState([]);
+  const [actionInFlight, setActionInFlight] = useState(false);
 
   // Restore session on mount (handles phone lock / tab reload mid-game)
   useEffect(() => {
@@ -767,7 +802,7 @@ export default function App() {
 
   // Subscribe to room + players once we have a roomCode
   useEffect(() => {
-    if (!roomCode) return;
+    if (!roomCode || !supabase) return;
 
     let active = true;
 
@@ -824,18 +859,31 @@ export default function App() {
   }
 
   async function handleAction(action, kind) {
-    if (action === "draw") {
-      const text = room.game_mode === "questions" ? pickTruthOrDareForQuestions() : pickTruthOrDare(room, kind);
-      await supabase
-        .from("rooms")
-        .update({ current_prompt: text, current_type: kind })
-        .eq("code", roomCode);
-    } else if (action === "next") {
-      const nextIndex = (room.current_player_index + 1) % players.length;
-      await supabase
-        .from("rooms")
-        .update({ current_prompt: null, current_type: null, current_player_index: nextIndex })
-        .eq("code", roomCode);
+    if (actionInFlight) return; // guard against rapid double-tap firing duplicate writes
+    setActionInFlight(true);
+    try {
+      if (action === "draw") {
+        // Only succeeds if the room is still in the state we expect (no prompt drawn yet).
+        // Prevents a double-tap from drawing two prompts in a row.
+        const text = room.game_mode === "questions" ? pickTruthOrDareForQuestions() : pickTruthOrDare(room, kind);
+        await supabase
+          .from("rooms")
+          .update({ current_prompt: text, current_type: kind })
+          .eq("code", roomCode)
+          .is("current_prompt", null);
+      } else if (action === "next") {
+        // Only succeeds if current_player_index still matches what this client saw.
+        // Prevents a double-tap (or stale retry) from advancing the turn twice.
+        const expectedIndex = room.current_player_index;
+        const nextIndex = (expectedIndex + 1) % players.length;
+        await supabase
+          .from("rooms")
+          .update({ current_prompt: null, current_type: null, current_player_index: nextIndex })
+          .eq("code", roomCode)
+          .eq("current_player_index", expectedIndex);
+      }
+    } finally {
+      setActionInFlight(false);
     }
   }
 
@@ -855,6 +903,10 @@ export default function App() {
     } catch (e) {
       // ignore
     }
+  }
+
+  if (!hasSupabaseConfig) {
+    return <ConfigScreen />;
   }
 
   if (view === "home") {
@@ -882,7 +934,7 @@ export default function App() {
   }
 
   if (view === "game" && room) {
-    return <GameScreen room={room} players={players} me={me} onAction={handleAction} />;
+    return <GameScreen room={room} players={players} me={me} onAction={handleAction} busy={actionInFlight} />;
   }
 
   return (
