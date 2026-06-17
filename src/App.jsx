@@ -1129,6 +1129,11 @@ export default function App() {
         .eq("room_code", roomCode)
         .order("join_order", { ascending: true });
       if (!active) return;
+      if (!r) {
+        handleLocalExit();
+        setInstallStatus("That saved room is no longer available. Create or join a new room.");
+        return;
+      }
       if (isExpiredRoom(r)) {
         handleLocalExit();
         setInstallStatus(`That room expired after ${ROOM_TTL_HOURS} hours. Create a new one to keep playing.`);
