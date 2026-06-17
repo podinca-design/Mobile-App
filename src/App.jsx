@@ -438,14 +438,14 @@ const CONTENT = {
         },
         {
           "id": "spicy_dare_002",
-          "text": "Ask one player if you may give them a 10-second shoulder massage. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if you may give them a slow 15-second shoulder or upper-back massage over clothing. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
             "count": 2,
             "text": "Take 2 shots."
           },
-          "intensity": 3
+          "intensity": 4
         },
         {
           "id": "spicy_dare_003",
@@ -461,14 +461,14 @@ const CONTENT = {
         },
         {
           "id": "spicy_dare_004",
-          "text": "Ask one player if they will slow dance with you for 20 seconds. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if they will slow dance close with you for 30 seconds. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
             "count": 2,
             "text": "Take 2 shots."
           },
-          "intensity": 3
+          "intensity": 4
         },
         {
           "id": "spicy_dare_005",
@@ -484,14 +484,14 @@ const CONTENT = {
         },
         {
           "id": "spicy_dare_006",
-          "text": "Ask one player if you may sit knee-to-knee with them for one round. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if they will sit knee-to-knee with you and hold eye contact for 20 seconds. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
             "count": 2,
             "text": "Take 2 shots."
           },
-          "intensity": 3
+          "intensity": 4
         },
         {
           "id": "spicy_dare_007",
@@ -507,7 +507,7 @@ const CONTENT = {
         },
         {
           "id": "spicy_dare_008",
-          "text": "Ask one player if you may kiss them. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if you may kiss them for 10 seconds. They choose the style if they consent. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "kissing": true,
           "penalty": {
@@ -532,14 +532,14 @@ const CONTENT = {
         },
         {
           "id": "spicy_dare_010",
-          "text": "Ask one player if you may put your arm around their shoulder for the next prompt. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if you may put your arm around their shoulder or waist for the next prompt. They choose what feels okay. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
             "count": 2,
             "text": "Take 2 shots."
           },
-          "intensity": 3
+          "intensity": 4
         },
         {
           "id": "spicy_dare_011",
@@ -555,7 +555,7 @@ const CONTENT = {
         },
         {
           "id": "spicy_dare_012",
-          "text": "Ask one player if they will kiss you on the cheek, neck, or shoulder. They choose the option if they consent. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if they will kiss you on the cheek, neck, or shoulder for 5 seconds. They choose the option if they consent. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "kissing": true,
           "penalty": {
@@ -628,7 +628,7 @@ const CONTENT = {
       "dares": [
         {
           "id": "wild_dare_001",
-          "text": "Ask one player if they will swap an accessory, outerwear item, or clothing item with you for one round. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if they will swap an accessory, outerwear item, or one consent-safe clothing item with you for one round. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "clothing_swap": true,
           "penalty": {
@@ -651,14 +651,14 @@ const CONTENT = {
         },
         {
           "id": "wild_dare_003",
-          "text": "Ask one player if you may do a 20-second slow dance with them. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if they will slow dance close with you for 20 seconds. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
             "count": 2,
             "text": "Take 2 shots."
           },
-          "intensity": 3
+          "intensity": 4
         },
         {
           "id": "wild_dare_004",
@@ -674,7 +674,7 @@ const CONTENT = {
         },
         {
           "id": "wild_dare_005",
-          "text": "Ask one player if you may kiss them. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if you may kiss them for 10 seconds. They choose the style if they consent. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "kissing": true,
           "penalty": {
@@ -698,14 +698,14 @@ const CONTENT = {
         },
         {
           "id": "wild_dare_007",
-          "text": "Ask one player if you may place your arm around their shoulder for the next prompt. Ask once only. If they say no, you fail the dare.",
+          "text": "Ask one player if you may put your arm around their shoulder or waist for the next prompt. They choose what feels okay. Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
             "count": 2,
             "text": "Take 2 shots."
           },
-          "intensity": 3
+          "intensity": 4
         },
         {
           "id": "wild_dare_008",
@@ -733,7 +733,7 @@ const CONTENT = {
         },
         {
           "id": "wild_dare_010",
-          "text": "Ask one player if they will choose one clothing item, outerwear item, or accessory for you to remove or wear for one round. Ask once only. If they say no, you fail the dare. You may refuse any choice that feels uncomfortable.",
+          "text": "Ask one player if they will choose one consent-safe clothing item, outerwear item, or accessory for you to remove or wear for one round. Ask once only. If they say no, you fail the dare. You may refuse any choice that feels uncomfortable.",
           "requires_consent": true,
           "clothing_swap": true,
           "clothing_removal": true,
@@ -759,12 +759,56 @@ const CONTENT = {
       "If you could have dinner with anyone, living or dead, who would it be?"
     ],
     "bold": [
-      "What's a belief you held strongly that you later changed your mind about?",
-      "What's the bravest thing you've ever done?",
-      "What's something you're still figuring out about yourself?",
-      "Who has had the biggest influence on who you are today?",
-      "What's a risk you took that paid off?",
-      "What's something you'd do differently if you could go back 5 years?"
+      {
+        "id": "bold_question_001",
+        "text": "What is a truth about your personality that most people only learn after getting close to you?",
+        "intensity": 3
+      },
+      {
+        "id": "bold_question_002",
+        "text": "What is one experience that changed how you approach trust?",
+        "intensity": 3
+      },
+      {
+        "id": "bold_question_003",
+        "text": "What is a pattern in your dating or friendship history that you have had to outgrow?",
+        "intensity": 3
+      },
+      {
+        "id": "bold_question_004",
+        "text": "What kind of attention makes you feel genuinely seen instead of just noticed?",
+        "intensity": 3
+      },
+      {
+        "id": "bold_question_005",
+        "text": "What is one emotional risk you took that taught you something about yourself?",
+        "intensity": 3
+      },
+      {
+        "id": "bold_question_006",
+        "text": "What is a boundary you did not always have, but you protect now?",
+        "intensity": 2
+      },
+      {
+        "id": "bold_question_007",
+        "text": "What do people often misunderstand about the way you show interest?",
+        "intensity": 2
+      },
+      {
+        "id": "bold_question_008",
+        "text": "What is one compliment you still remember because it felt unusually accurate?",
+        "intensity": 2
+      },
+      {
+        "id": "bold_question_009",
+        "text": "What part of your confidence is real, and what part are you still building?",
+        "intensity": 3
+      },
+      {
+        "id": "bold_question_010",
+        "text": "What is one thing you wish people asked you about more often?",
+        "intensity": 2
+      }
     ],
     "couples": [
       "What's your favorite memory of us so far?",
@@ -777,155 +821,155 @@ const CONTENT = {
     "wild": [
       {
         "id": "wild_question_001",
-        "text": "Who here looks the most innocent but probably is not?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_002",
-        "text": "Who here would be the best person to have as your wingman or wingwoman?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_003",
-        "text": "What is your most chaotic dating opinion?",
+        "text": "What is the most impulsive decision that actually revealed something true about you?",
         "intensity": 3
       },
       {
+        "id": "wild_question_002",
+        "text": "When do you become the most unpredictable version of yourself?",
+        "intensity": 3
+      },
+      {
+        "id": "wild_question_003",
+        "text": "What is a reputation you secretly enjoy having?",
+        "intensity": 2
+      },
+      {
         "id": "wild_question_004",
-        "text": "What is one thing people call a red flag that you secretly find attractive?",
+        "text": "What is one thing you have done for attention that you can admit now?",
         "intensity": 3
       },
       {
         "id": "wild_question_005",
-        "text": "Who here gives off main character energy?",
-        "intensity": 2
+        "text": "What kind of person brings out your reckless side?",
+        "intensity": 3
       },
       {
         "id": "wild_question_006",
-        "text": "What is the most dramatic thing you have done for attention?",
-        "intensity": 3
+        "text": "What is the most charming bad habit you have?",
+        "intensity": 2
       },
       {
         "id": "wild_question_007",
-        "text": "What is one wild story you can tell without naming names?",
-        "intensity": 3
+        "text": "What is one story from your past that explains your sense of humor?",
+        "intensity": 2
       },
       {
         "id": "wild_question_008",
-        "text": "Who here would be most likely to flirt their way out of trouble?",
+        "text": "What is your most chaotic green flag?",
         "intensity": 2
       },
       {
         "id": "wild_question_009",
-        "text": "What is one thing you would only confess after midnight?",
+        "text": "What is something you usually only admit after midnight?",
         "intensity": 3
       },
       {
         "id": "wild_question_010",
-        "text": "What is the funniest bad decision you almost made?",
+        "text": "What kind of compliment makes you act like it did not work, even though it did?",
         "intensity": 2
       },
       {
         "id": "wild_question_011",
-        "text": "Who here would survive best in a reality dating show?",
-        "intensity": 2
+        "text": "What is one side of you that only comes out in the right room?",
+        "intensity": 3
       },
       {
         "id": "wild_question_012",
-        "text": "What is one thing that instantly makes a party better?",
-        "intensity": 1
+        "text": "What is one lesson you learned from a night that got out of hand?",
+        "intensity": 3
       },
       {
         "id": "wild_question_013",
-        "text": "Who here would be the most dangerous person to text after two drinks?",
+        "text": "What is one rule you break in your head before you ever break it out loud?",
         "intensity": 3
       },
       {
         "id": "wild_question_014",
-        "text": "What is one compliment you pretend does not work on you, but it does?",
+        "text": "What is one thing you do when you are flirting before you realize you are flirting?",
         "intensity": 2
       },
       {
         "id": "wild_question_015",
-        "text": "What is your most charming bad habit?",
+        "text": "What is your most harmless but revealing confession?",
         "intensity": 2
       }
     ],
     "spicy": [
       {
         "id": "spicy_question_001",
-        "text": "What is the quickest way someone can make the room feel warmer without touching you?",
-        "intensity": 2
+        "text": "What did your first serious intimate connection teach you about what you need from someone?",
+        "intensity": 4
       },
       {
         "id": "spicy_question_002",
-        "text": "What is your favorite kind of non-verbal flirting?",
-        "intensity": 2
+        "text": "What is one past romantic or sexual experience that changed your confidence?",
+        "intensity": 4
       },
       {
         "id": "spicy_question_003",
-        "text": "What is one compliment that would be dangerous if said by the right person?",
+        "text": "What is something you used to be shy about that you are more comfortable owning now?",
         "intensity": 3
       },
       {
         "id": "spicy_question_004",
-        "text": "What body part do you think does not get enough appreciation?",
-        "intensity": 3
+        "text": "What kind of chemistry makes you feel safe enough to be bold?",
+        "intensity": 4
       },
       {
         "id": "spicy_question_005",
-        "text": "What kind of touch feels most romantic or exciting to you?",
+        "text": "What is one boundary you learned from experience rather than theory?",
         "intensity": 3
       },
       {
         "id": "spicy_question_006",
-        "text": "What clothing item or outfit always gets your attention?",
+        "text": "What is a moment when attraction surprised you?",
         "intensity": 3
       },
       {
         "id": "spicy_question_007",
-        "text": "What kind of kiss do you like most?",
+        "text": "What kind of kiss from your past do you still remember, and why?",
         "intensity": 4
       },
       {
         "id": "spicy_question_008",
-        "text": "Would you rather be kissed softly for a long time or kissed like someone could not wait anymore?",
-        "intensity": 4
+        "text": "What is one thing an old crush or partner helped you learn about yourself?",
+        "intensity": 3
       },
       {
         "id": "spicy_question_009",
-        "text": "What is one adult-only dare you would be open to with clear consent?",
+        "text": "What makes intimacy feel meaningful to you instead of just exciting?",
         "intensity": 4
       },
       {
         "id": "spicy_question_010",
-        "text": "What is one part of your body you feel most confident showing in the right private setting?",
+        "text": "What is one private compliment you have received that stayed with you?",
         "intensity": 4
       },
       {
         "id": "spicy_question_011",
-        "text": "What is more attractive: confidence, eye contact, touch, or the right words?",
-        "intensity": 3
+        "text": "What is something you wish people understood about your desire or attraction style?",
+        "intensity": 4
       },
       {
         "id": "spicy_question_012",
-        "text": "What is the difference between sexy and trying too hard?",
-        "intensity": 3
+        "text": "What is one experience that taught you the difference between attention and real chemistry?",
+        "intensity": 4
       },
       {
         "id": "spicy_question_013",
-        "text": "What kind of physical chemistry is impossible to fake?",
+        "text": "What kind of non-graphic memory from a past intimate moment still makes you smile?",
         "intensity": 4
       },
       {
         "id": "spicy_question_014",
-        "text": "What is one clothing swap or clothing-removal dare you would actually consider in a private adults-only game?",
-        "intensity": 4
+        "text": "What is one lesson from your past that made you better at consent or communication?",
+        "intensity": 3
       },
       {
         "id": "spicy_question_015",
-        "text": "What is one boundary you want people to respect even in a spicy game?",
-        "intensity": 2
+        "text": "What is a spicy truth about you that is more emotional than physical?",
+        "intensity": 4
       }
     ]
   }
@@ -980,7 +1024,7 @@ function randomInviteToken() {
 }
 
 function firstNameOnly(value) {
-  return String(value || "").trim().split(/\s+/)[0]?.slice(0, 24) || "";
+  return String(value || "").replace(/\s+/g, "").slice(0, 24);
 }
 
 function pickTruthOrDare(room, kind) {
@@ -1795,7 +1839,7 @@ function GameScreen({
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="ghost" disabled={busy} onClick={onShareRecap}>Share recap</Button>
-              <Button variant="ghost" disabled={busy} onClick={onEndGame}>End game</Button>
+              <Button variant="ghost" disabled={busy} onClick={onEndGame}>Return to lobby</Button>
             </div>
           </div>
         )}
