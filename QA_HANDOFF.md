@@ -121,3 +121,19 @@ reference copy — if you edit prompts, edit `App.jsx`, not the JSON file.
 Report back with: a plain list of what you tested, what passed, what
 failed, and what you fixed vs. what still needs a product decision (not
 just a code fix) before shipping.
+
+## Current additions to verify
+
+- Installable app support is now present: web manifest, service worker,
+  192/512 app icons, and an install prompt/fallback. Room sessions persist
+  in `localStorage` so closing or backgrounding the device should allow the
+  host/player to re-enter the same room. Tapping Leave is an intentional
+  exit and removes that player row.
+- Host/game controls now include QR invite sharing, host transfer, player
+  removal, skip-player, local penalty scoreboard, shareable recap,
+  offline/reconnect status, duplicate-name blocking, a 12-player room cap,
+  an 18-hour room-expiry guard, and a Wild content pack.
+- Room expiry is client-guarded, not database-purged. If demo usage grows,
+  add a scheduled Supabase cleanup job or Edge Function.
+- The penalty scoreboard is local to the current device. It is enough for a
+  host recap during a demo, but not a synced audit log across all devices.

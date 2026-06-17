@@ -5,6 +5,8 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 const SESSION_KEY = "td_session";
+const MAX_PLAYERS = 12;
+const ROOM_TTL_HOURS = 18;
 
 const supabase = hasSupabaseConfig ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -90,6 +92,27 @@ const CONTENT = {
         "Tell me your favorite thing about how we kiss.",
       ],
     },
+    {
+      id: "wild",
+      label: "Wild",
+      accent: "#FFB84D",
+      truths: [
+        "What's the most chaotic decision you made this year?",
+        "Who here would you call first for a last-minute adventure?",
+        "What's one thing you would do tonight if there were no consequences?",
+        "What's the boldest message sitting in your drafts?",
+        "What is a party story you usually leave one detail out of?",
+        "Who in this room gives the best bad advice?",
+      ],
+      dares: [
+        "Let the group choose your next social media caption.",
+        "Switch an accessory with someone until your next turn.",
+        "Let the room pick a contact for you to send a harmless compliment.",
+        "Give a dramatic toast to the person on your left.",
+        "Do your victory dance like you just won the whole night.",
+        "Let the group choose one word you cannot say for three rounds.",
+      ],
+    },
   ],
   questionsMode: {
     mild: [
@@ -117,6 +140,14 @@ const CONTENT = {
       "What's a dream you have for our future together?",
       "What's something I do that makes you feel most loved?",
       "What's a little quirk of mine that you secretly adore?",
+    ],
+    wild: [
+      "What's the funniest thing that could happen before the night ends?",
+      "Who here would survive a group trip with the least planning?",
+      "What is your most unhinged but harmless opinion?",
+      "What's one rule this group should invent for tonight?",
+      "Who here is most likely to turn a small plan into a full event?",
+      "What's the best story from a night that started with no plan?",
     ],
   },
 };
@@ -151,6 +182,21 @@ function penaltyTextFor(kind) {
   const shotCount = kind === "dare" ? Math.floor(Math.random() * 3) + 2 : Math.floor(Math.random() * 2) + 1;
   const label = kind === "dare" ? "Dare refused or failed" : "Challenge skipped";
   return `${label}: ${shotCount} ${shotCount === 1 ? "shot" : "shots"}. The group can swap for a house-rule penalty.`;
+}
+
+function shotCountFromPenalty(text) {
+  const match = String(text || "").match(/: (\d+) shots?/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function isExpiredRoom(room) {
+  if (!room?.created_at) return false;
+  const ageMs = Date.now() - new Date(room.created_at).getTime();
+  return ageMs > ROOM_TTL_HOURS * 60 * 60 * 1000;
+}
+
+function qrUrlFor(code) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(inviteUrlFor(code))}`;
 }
 
 // ---- Small UI atoms ----------------------------------------------------
@@ -419,13 +465,29 @@ function JoinRoomScreen({ code, onJoined, onBack }) {
         setBusy(false);
         return;
       }
+      if (isExpiredRoom(room)) {
+        setError(`That room expired after ${ROOM_TTL_HOURS} hours. Ask the host to create a new room.`);
+        setBusy(false);
+        return;
+      }
       const { data: existingPlayers } = await supabase
         .from("players")
         .select("*")
         .eq("room_code", code)
         .order("join_order", { ascending: true });
+      const roster = existingPlayers || [];
+      if (roster.length >= MAX_PLAYERS) {
+        setError(`This room is full at ${MAX_PLAYERS} players.`);
+        setBusy(false);
+        return;
+      }
+      if (roster.some((player) => player.name.trim().toLowerCase() === name.trim().toLowerCase())) {
+        setError("That name is already in the room. Add an initial or nickname.");
+        setBusy(false);
+        return;
+      }
 
-      const nextOrder = (existingPlayers?.length || 0);
+      const nextOrder = roster.length;
       const { data: player, error: playerErr } = await supabase
         .from("players")
         .insert({ room_code: code, name: name.trim(), join_order: nextOrder })
@@ -460,9 +522,22 @@ function JoinRoomScreen({ code, onJoined, onBack }) {
   );
 }
 
-function LobbyScreen({ room, players, me, onStart, onLeave, onInvite, inviteStatus, onRoomSettingsChange }) {
+function LobbyScreen({
+  room,
+  players,
+  me,
+  online,
+  onStart,
+  onLeave,
+  onInvite,
+  inviteStatus,
+  onRoomSettingsChange,
+  onRemovePlayer,
+  onTransferHost,
+}) {
   const isHost = players.length > 0 && players[0].id === me.id;
   const cat = CONTENT.categories.find((c) => c.id === room.category);
+  const inviteUrl = inviteUrlFor(room.code);
 
   return (
     <div style={screenWrap}>
@@ -476,6 +551,7 @@ function LobbyScreen({ room, players, me, onStart, onLeave, onInvite, inviteStat
           <p style={{ color: "#9C97AE", fontSize: 14, marginTop: 6, fontFamily: "'Manrope', sans-serif" }}>
             Share this code so others can join
           </p>
+          <Pill text={online ? "Connected" : "Offline - reconnecting"} accent={online ? "#34D6B0" : "#FFB84D"} />
         </div>
 
         <div>
@@ -488,7 +564,15 @@ function LobbyScreen({ room, players, me, onStart, onLeave, onInvite, inviteStat
                 <span style={{ fontFamily: "'Manrope', sans-serif", fontWeight: 600 }}>
                   {p.name} {p.id === me.id && <span style={{ color: "#9C97AE" }}>(you)</span>}
                 </span>
-                {i === 0 && <span style={{ ...badge, background: cat?.accent }}>HOST</span>}
+                <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {i === 0 && <span style={{ ...badge, background: cat?.accent }}>HOST</span>}
+                  {isHost && p.id !== me.id && (
+                    <>
+                      <button onClick={() => onTransferHost(p)} style={miniBtn}>Make host</button>
+                      <button onClick={() => onRemovePlayer(p)} style={miniBtn}>Remove</button>
+                    </>
+                  )}
+                </span>
               </div>
             ))}
           </div>
@@ -502,6 +586,13 @@ function LobbyScreen({ room, players, me, onStart, onLeave, onInvite, inviteStat
         <Button variant="ghost" onClick={onInvite}>
           Invite players
         </Button>
+        <div style={qrPanel}>
+          <img src={qrUrlFor(room.code)} alt={`QR invite for room ${room.code}`} style={qrImage} />
+          <div style={{ ...hintText, textAlign: "left" }}>
+            Scan to join, or share this link:
+            <div style={linkText}>{inviteUrl}</div>
+          </div>
+        </div>
         {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
 
         {isHost && (
@@ -546,7 +637,22 @@ function LobbyScreen({ room, players, me, onStart, onLeave, onInvite, inviteStat
   );
 }
 
-function GameScreen({ room, players, me, onAction, onLeave, onInvite, onEndGame, inviteStatus, busy }) {
+function GameScreen({
+  room,
+  players,
+  me,
+  online,
+  score,
+  onAction,
+  onLeave,
+  onInvite,
+  onEndGame,
+  onSkipPlayer,
+  onRemovePlayer,
+  onShareRecap,
+  inviteStatus,
+  busy,
+}) {
   const cat = CONTENT.categories.find((c) => c.id === room.category);
   const currentPlayer = players[room.current_player_index % players.length];
   const isMyTurn = currentPlayer?.id === me.id;
@@ -575,6 +681,7 @@ function GameScreen({ room, players, me, onAction, onLeave, onInvite, onEndGame,
       <div style={{ textAlign: "center", marginTop: 0, marginBottom: 4 }}>
         <Pill text={room.game_mode === "questions" ? "Questions" : "Truth or Dare"} />
         <Pill text={cat?.label} accent={accent} style={{ marginLeft: 8 }} />
+        <Pill text={online ? "Connected" : "Offline - reconnecting"} accent={online ? "#34D6B0" : "#FFB84D"} style={{ marginLeft: 8 }} />
       </div>
       {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
 
@@ -659,8 +766,26 @@ function GameScreen({ room, players, me, onAction, onLeave, onInvite, onEndGame,
           </div>
         )}
         {isHost && (
-          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-            <Button variant="ghost" disabled={busy} onClick={onEndGame}>End game</Button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="ghost" disabled={busy} onClick={onSkipPlayer}>Skip player</Button>
+              <Button variant="ghost" disabled={busy || !currentPlayer || currentPlayer.id === me.id} onClick={() => onRemovePlayer(currentPlayer)}>Remove player</Button>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="ghost" disabled={busy} onClick={onShareRecap}>Share recap</Button>
+              <Button variant="ghost" disabled={busy} onClick={onEndGame}>End game</Button>
+            </div>
+          </div>
+        )}
+        {score.length > 0 && (
+          <div style={scorePanel}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>PENALTIES</div>
+            {score.slice(0, 4).map((entry) => (
+              <div key={entry.name} style={scoreRow}>
+                <span>{entry.name}</span>
+                <span>{entry.shots} shots</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -834,6 +959,64 @@ const badge = {
   letterSpacing: "0.05em",
 };
 
+const miniBtn = {
+  background: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 9,
+  color: "#E9E7F0",
+  cursor: "pointer",
+  fontFamily: "'Manrope', sans-serif",
+  fontSize: 11,
+  fontWeight: 700,
+  padding: "6px 8px",
+};
+
+const qrPanel = {
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  padding: 12,
+};
+
+const qrImage = {
+  width: 92,
+  height: 92,
+  borderRadius: 10,
+  background: "#F4F2FA",
+  flex: "0 0 auto",
+};
+
+const linkText = {
+  marginTop: 6,
+  color: "#F4F2FA",
+  fontFamily: "'Manrope', sans-serif",
+  fontSize: 12,
+  lineHeight: 1.35,
+  overflowWrap: "anywhere",
+};
+
+const scorePanel = {
+  marginTop: 14,
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  padding: 12,
+};
+
+const scoreRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  color: "#E9E7F0",
+  fontFamily: "'Manrope', sans-serif",
+  fontSize: 13,
+  fontWeight: 700,
+  padding: "4px 0",
+};
+
 // ---- Root app ---------------------------------------------------------
 
 export default function App() {
@@ -847,6 +1030,8 @@ export default function App() {
   const [inviteStatus, setInviteStatus] = useState("");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installStatus, setInstallStatus] = useState("");
+  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [activityLog, setActivityLog] = useState([]);
 
   // Restore session on mount (handles phone lock / tab reload mid-game)
   useEffect(() => {
@@ -904,6 +1089,24 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    function handleOnline() {
+      setOnline(true);
+    }
+
+    function handleOffline() {
+      setOnline(false);
+    }
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   // Load fonts once
   useEffect(() => {
     const link = document.createElement("link");
@@ -926,6 +1129,11 @@ export default function App() {
         .eq("room_code", roomCode)
         .order("join_order", { ascending: true });
       if (!active) return;
+      if (isExpiredRoom(r)) {
+        handleLocalExit();
+        setInstallStatus(`That room expired after ${ROOM_TTL_HOURS} hours. Create a new one to keep playing.`);
+        return;
+      }
       setRoom(r);
       setPlayers(p || []);
       if (r?.status === "playing") setView("game");
@@ -955,6 +1163,38 @@ export default function App() {
       supabase.removeChannel(channel);
     };
   }, [roomCode]);
+
+  useEffect(() => {
+    if (!roomCode) {
+      setActivityLog([]);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(`td_activity_${roomCode}`);
+      setActivityLog(saved ? JSON.parse(saved) : []);
+    } catch (e) {
+      setActivityLog([]);
+    }
+  }, [roomCode]);
+
+  useEffect(() => {
+    if (!roomCode) return;
+    try {
+      localStorage.setItem(`td_activity_${roomCode}`, JSON.stringify(activityLog.slice(0, 30)));
+    } catch (e) {
+      // ignore storage errors
+    }
+  }, [activityLog, roomCode]);
+
+  const penaltyScore = activityLog
+    .filter((entry) => entry.type === "penalty")
+    .reduce((acc, entry) => {
+      acc[entry.player] = (acc[entry.player] || 0) + entry.shots;
+      return acc;
+    }, {});
+  const score = Object.entries(penaltyScore)
+    .map(([name, shots]) => ({ name, shots }))
+    .sort((a, b) => b.shots - a.shots);
 
   function handleRoomCreated(code, player) {
     setMe(player);
@@ -1014,6 +1254,82 @@ export default function App() {
     }
   }
 
+  async function handleRemovePlayer(player) {
+    if (!player || actionInFlight) return;
+    setActionInFlight(true);
+    try {
+      await supabase.from("players").delete().eq("id", player.id);
+      if (player.id === me?.id) {
+        handleLocalExit();
+        return;
+      }
+      if (players.length <= 2) {
+        await supabase
+          .from("rooms")
+          .update({ status: "lobby", current_player_index: 0, current_prompt: null, current_type: null })
+          .eq("code", roomCode);
+        return;
+      }
+      const currentIndex = room.current_player_index % players.length;
+      const removedIndex = players.findIndex((p) => p.id === player.id);
+      if (removedIndex > -1 && removedIndex <= currentIndex) {
+        await supabase
+          .from("rooms")
+          .update({ current_player_index: Math.max(0, currentIndex - 1), current_prompt: null, current_type: null })
+          .eq("code", roomCode);
+      }
+    } finally {
+      setActionInFlight(false);
+    }
+  }
+
+  async function handleTransferHost(player) {
+    if (!player || actionInFlight) return;
+    setActionInFlight(true);
+    try {
+      const updates = players.map((p, index) => {
+        const joinOrder = p.id === player.id ? -1 : index + 1;
+        return supabase.from("players").update({ join_order: joinOrder }).eq("id", p.id);
+      });
+      await Promise.all(updates);
+      await supabase
+        .from("rooms")
+        .update({ current_prompt: null, current_type: null })
+        .eq("code", roomCode);
+      setInviteStatus(`${player.name} is now host.`);
+    } finally {
+      setActionInFlight(false);
+    }
+  }
+
+  async function handleSkipPlayer() {
+    if (!players.length) return;
+    await handleAction("next");
+  }
+
+  async function handleShareRecap() {
+    const lines = [
+      `Truth/Dare room ${roomCode} recap`,
+      `Players: ${players.map((player) => player.name).join(", ") || "None"}`,
+      score.length ? `Penalties: ${score.map((entry) => `${entry.name} ${entry.shots}`).join(", ")}` : "Penalties: none",
+      `Invite: ${inviteUrlFor(roomCode)}`,
+    ];
+    const text = lines.join("\n");
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Truth/Dare recap", text });
+        setInviteStatus("Recap shared.");
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setInviteStatus("Recap copied.");
+      } else {
+        setInviteStatus(text);
+      }
+    } catch (e) {
+      setInviteStatus(text);
+    }
+  }
+
   async function handleInstall() {
     if (installPrompt) {
       installPrompt.prompt();
@@ -1040,11 +1356,22 @@ export default function App() {
           .eq("code", roomCode)
           .is("current_prompt", null);
       } else if (action === "penalty") {
+        const penaltyText = penaltyTextFor(room.current_type);
         await supabase
           .from("rooms")
-          .update({ current_prompt: penaltyTextFor(room.current_type), current_type: "penalty" })
+          .update({ current_prompt: penaltyText, current_type: "penalty" })
           .eq("code", roomCode)
           .eq("current_player_index", room.current_player_index);
+        setActivityLog((entries) => [
+          {
+            type: "penalty",
+            player: currentPlayerName(),
+            shots: shotCountFromPenalty(penaltyText),
+            text: penaltyText,
+            at: new Date().toISOString(),
+          },
+          ...entries,
+        ].slice(0, 30));
       } else if (action === "next") {
         // Only succeeds if current_player_index still matches what this client saw.
         // Prevents a double-tap (or stale retry) from advancing the turn twice.
@@ -1066,7 +1393,11 @@ export default function App() {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  function handleLeave() {
+  function currentPlayerName() {
+    return players[room.current_player_index % players.length]?.name || "Player";
+  }
+
+  function handleLocalExit() {
     setView("home");
     setRoomCode(null);
     setRoom(null);
@@ -1079,6 +1410,15 @@ export default function App() {
     } catch (e) {
       // ignore
     }
+  }
+
+  async function handleLeave() {
+    const player = me;
+    if (player?.id && supabase) {
+      await handleRemovePlayer(player);
+      return;
+    }
+    handleLocalExit();
   }
 
   if (!hasSupabaseConfig) {
@@ -1114,11 +1454,14 @@ export default function App() {
         room={room}
         players={players}
         me={me}
+        online={online}
         onStart={handleStart}
         onLeave={handleLeave}
         onInvite={handleInvite}
         inviteStatus={inviteStatus}
         onRoomSettingsChange={handleRoomSettingsChange}
+        onRemovePlayer={handleRemovePlayer}
+        onTransferHost={handleTransferHost}
       />
     );
   }
@@ -1129,10 +1472,15 @@ export default function App() {
         room={room}
         players={players}
         me={me}
+        online={online}
+        score={score}
         onAction={handleAction}
         onLeave={handleLeave}
         onInvite={handleInvite}
         onEndGame={handleEndGame}
+        onSkipPlayer={handleSkipPlayer}
+        onRemovePlayer={handleRemovePlayer}
+        onShareRecap={handleShareRecap}
         inviteStatus={inviteStatus}
         busy={actionInFlight}
       />
