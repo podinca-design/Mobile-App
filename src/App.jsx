@@ -138,6 +138,20 @@ function pickTruthOrDare(room, kind) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+function inviteUrlFor(code) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("room", code);
+  return url.toString();
+}
+
+function penaltyTextFor(kind) {
+  const shotCount = kind === "dare" ? Math.floor(Math.random() * 3) + 2 : Math.floor(Math.random() * 2) + 1;
+  const label = kind === "dare" ? "Dare refused or failed" : "Challenge skipped";
+  return `${label}: ${shotCount} ${shotCount === 1 ? "shot" : "shots"}. The group can swap for a house-rule penalty.`;
+}
+
 // ---- Small UI atoms ----------------------------------------------------
 function Button({ children, onClick, variant = "solid", accent = "#34D6B0", disabled, style }) {
   const base = {
@@ -441,7 +455,7 @@ function JoinRoomScreen({ code, onJoined, onBack }) {
   );
 }
 
-function LobbyScreen({ room, players, me, onStart, onLeave }) {
+function LobbyScreen({ room, players, me, onStart, onLeave, onInvite, inviteStatus, onRoomSettingsChange }) {
   const isHost = players.length > 0 && players[0].id === me.id;
   const cat = CONTENT.categories.find((c) => c.id === room.category);
 
@@ -480,6 +494,39 @@ function LobbyScreen({ room, players, me, onStart, onLeave }) {
           <Pill text={cat?.label} accent={cat?.accent} />
         </div>
 
+        <Button variant="ghost" onClick={onInvite}>
+          Invite players
+        </Button>
+        {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
+
+        {isHost && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Field label="Game mode">
+              <SegmentedControl
+                options={[
+                  { id: "truth_dare", label: "Truth or Dare" },
+                  { id: "questions", label: "Questions" },
+                ]}
+                value={room.game_mode}
+                onChange={(value) => onRoomSettingsChange({ game_mode: value })}
+              />
+            </Field>
+            <Field label="Category">
+              <div style={{ display: "flex", gap: 10 }}>
+                {CONTENT.categories.map((c) => (
+                  <CategoryChip
+                    key={c.id}
+                    label={c.label.split(" / ")[0]}
+                    accent={c.accent}
+                    active={room.category === c.id}
+                    onClick={() => onRoomSettingsChange({ category: c.id })}
+                  />
+                ))}
+              </div>
+            </Field>
+          </div>
+        )}
+
         {isHost ? (
           <Button accent={cat?.accent} disabled={players.length < 2} onClick={onStart}>
             {players.length < 2 ? "Waiting for more players…" : "Start game"}
@@ -494,11 +541,13 @@ function LobbyScreen({ room, players, me, onStart, onLeave }) {
   );
 }
 
-function GameScreen({ room, players, me, onAction, busy }) {
+function GameScreen({ room, players, me, onAction, onLeave, onInvite, onEndGame, inviteStatus, busy }) {
   const cat = CONTENT.categories.find((c) => c.id === room.category);
   const currentPlayer = players[room.current_player_index % players.length];
   const isMyTurn = currentPlayer?.id === me.id;
   const hasPrompt = !!room.current_prompt;
+  const isPenalty = room.current_type === "penalty";
+  const isHost = players.length > 0 && players[0].id === me.id;
   const [flipped, setFlipped] = useState(false);
 
   useEffect(() => {
@@ -513,10 +562,16 @@ function GameScreen({ room, players, me, onAction, busy }) {
 
   return (
     <div style={screenWrap}>
-      <div style={{ textAlign: "center", marginTop: 8, marginBottom: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 16 }}>
+        <button onClick={onLeave} style={backBtn}>Leave</button>
+        <button onClick={onInvite} style={backBtn}>Invite</button>
+      </div>
+
+      <div style={{ textAlign: "center", marginTop: 0, marginBottom: 4 }}>
         <Pill text={room.game_mode === "questions" ? "Questions" : "Truth or Dare"} />
         <Pill text={cat?.label} accent={accent} style={{ marginLeft: 8 }} />
       </div>
+      {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 28 }}>
         <div style={{ textAlign: "center" }} aria-live="polite">
@@ -557,7 +612,7 @@ function GameScreen({ room, players, me, onAction, busy }) {
               {hasPrompt ? (
                 <div>
                   <div style={{ ...eyebrow, color: accent, marginBottom: 10 }}>
-                    {room.current_type?.toUpperCase()}
+                    {isPenalty ? "PENALTY" : room.current_type?.toUpperCase()}
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Sora', sans-serif", lineHeight: 1.35, color: "#F4F2FA" }}>
                     {room.current_prompt}
@@ -584,11 +639,23 @@ function GameScreen({ room, players, me, onAction, busy }) {
           <Button accent={accent} disabled={busy} onClick={() => onAction("draw", "question")}>Draw a question</Button>
         )}
         {isMyTurn && hasPrompt && (
-          <Button accent={accent} disabled={busy} onClick={() => onAction("next")}>Done — next player</Button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {!isPenalty && (
+              <Button variant="outline" accent="#FFB84D" disabled={busy} onClick={() => onAction("penalty")}>
+                Refused / failed
+              </Button>
+            )}
+            <Button accent={accent} disabled={busy} onClick={() => onAction("next")}>Done - next player</Button>
+          </div>
         )}
         {!isMyTurn && (
           <div style={{ textAlign: "center", color: "#807C92", fontSize: 13, fontFamily: "'Manrope', sans-serif" }}>
             {currentPlayer?.name} is up
+          </div>
+        )}
+        {isHost && (
+          <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <Button variant="ghost" disabled={busy} onClick={onEndGame}>End game</Button>
           </div>
         )}
       </div>
@@ -686,6 +753,14 @@ function Pill({ text, accent = "#9C97AE", style }) {
   );
 }
 
+const hintText = {
+  textAlign: "center",
+  color: "#9C97AE",
+  fontSize: 13,
+  lineHeight: 1.45,
+  fontFamily: "'Manrope', sans-serif",
+};
+
 // ---- Layout tokens --------------------------------------------------------
 
 const screenWrap = {
@@ -764,10 +839,17 @@ export default function App() {
   const [room, setRoom] = useState(null);
   const [players, setPlayers] = useState([]);
   const [actionInFlight, setActionInFlight] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState("");
 
   // Restore session on mount (handles phone lock / tab reload mid-game)
   useEffect(() => {
     try {
+      const invitedRoom = new URLSearchParams(window.location.search).get("room");
+      if (invitedRoom) {
+        setJoinCode(invitedRoom.toUpperCase().slice(0, 4));
+        setView("join");
+        return;
+      }
       const saved = sessionStorage.getItem("td_session");
       if (saved) {
         const { roomCode: savedRoom, me: savedMe } = JSON.parse(saved);
@@ -855,7 +937,51 @@ export default function App() {
   }
 
   async function handleStart() {
-    await supabase.from("rooms").update({ status: "playing", current_player_index: 0 }).eq("code", roomCode);
+    await supabase
+      .from("rooms")
+      .update({ status: "playing", current_player_index: 0, current_prompt: null, current_type: null })
+      .eq("code", roomCode);
+  }
+
+  async function handleEndGame() {
+    if (actionInFlight) return;
+    setActionInFlight(true);
+    try {
+      await supabase
+        .from("rooms")
+        .update({ status: "lobby", current_player_index: 0, current_prompt: null, current_type: null })
+        .eq("code", roomCode);
+      setView("lobby");
+    } finally {
+      setActionInFlight(false);
+    }
+  }
+
+  async function handleRoomSettingsChange(nextSettings) {
+    if (!roomCode) return;
+    await supabase
+      .from("rooms")
+      .update({ ...nextSettings, current_prompt: null, current_type: null, current_player_index: 0 })
+      .eq("code", roomCode);
+  }
+
+  async function handleInvite() {
+    if (!roomCode) return;
+    const url = inviteUrlFor(roomCode);
+    const text = `Join my Truth/Dare room ${roomCode}: ${url}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Join my Truth/Dare room", text, url });
+        setInviteStatus("Invite sheet opened.");
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setInviteStatus("Invite link copied.");
+      } else {
+        setInviteStatus(text);
+      }
+    } catch (e) {
+      setInviteStatus(text);
+    }
   }
 
   async function handleAction(action, kind) {
@@ -871,6 +997,12 @@ export default function App() {
           .update({ current_prompt: text, current_type: kind })
           .eq("code", roomCode)
           .is("current_prompt", null);
+      } else if (action === "penalty") {
+        await supabase
+          .from("rooms")
+          .update({ current_prompt: penaltyTextFor(room.current_type), current_type: "penalty" })
+          .eq("code", roomCode)
+          .eq("current_player_index", room.current_player_index);
       } else if (action === "next") {
         // Only succeeds if current_player_index still matches what this client saw.
         // Prevents a double-tap (or stale retry) from advancing the turn twice.
@@ -898,6 +1030,7 @@ export default function App() {
     setRoom(null);
     setPlayers([]);
     setMe(null);
+    setInviteStatus("");
     try {
       sessionStorage.removeItem("td_session");
     } catch (e) {
@@ -930,11 +1063,34 @@ export default function App() {
   }
 
   if (view === "lobby" && room) {
-    return <LobbyScreen room={room} players={players} me={me} onStart={handleStart} onLeave={handleLeave} />;
+    return (
+      <LobbyScreen
+        room={room}
+        players={players}
+        me={me}
+        onStart={handleStart}
+        onLeave={handleLeave}
+        onInvite={handleInvite}
+        inviteStatus={inviteStatus}
+        onRoomSettingsChange={handleRoomSettingsChange}
+      />
+    );
   }
 
   if (view === "game" && room) {
-    return <GameScreen room={room} players={players} me={me} onAction={handleAction} busy={actionInFlight} />;
+    return (
+      <GameScreen
+        room={room}
+        players={players}
+        me={me}
+        onAction={handleAction}
+        onLeave={handleLeave}
+        onInvite={handleInvite}
+        onEndGame={handleEndGame}
+        inviteStatus={inviteStatus}
+        busy={actionInFlight}
+      />
+    );
   }
 
   return (
