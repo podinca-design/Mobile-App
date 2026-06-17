@@ -164,17 +164,27 @@ function randomCode() {
   return out;
 }
 
+function randomInviteToken() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let out = "";
+  for (let i = 0; i < 18; i += 1) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
 function pickTruthOrDare(room, kind) {
   const cat = CONTENT.categories.find((c) => c.id === room.category) || CONTENT.categories[0];
   const pool = kind === "truth" ? cat.truths : cat.dares;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function inviteUrlFor(code) {
+function inviteUrlFor(code, token) {
   const url = new URL(window.location.href);
   url.search = "";
   url.hash = "";
   url.searchParams.set("room", code);
+  if (token) url.searchParams.set("invite", token);
   return url.toString();
 }
 
@@ -195,8 +205,8 @@ function isExpiredRoom(room) {
   return ageMs > ROOM_TTL_HOURS * 60 * 60 * 1000;
 }
 
-function qrUrlFor(code) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(inviteUrlFor(code))}`;
+function qrUrlFor(code, token) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(inviteUrlFor(code, token))}`;
 }
 
 // ---- Small UI atoms ----------------------------------------------------
@@ -445,7 +455,7 @@ function CreateRoomScreen({ onRoomCreated, onBack }) {
   );
 }
 
-function JoinRoomScreen({ code, onJoined, onBack }) {
+function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -469,6 +479,26 @@ function JoinRoomScreen({ code, onJoined, onBack }) {
         setError(`That room expired after ${ROOM_TTL_HOURS} hours. Ask the host to create a new room.`);
         setBusy(false);
         return;
+      }
+      let invite = null;
+      if (inviteToken) {
+        const { data: inviteRow, error: inviteErr } = await supabase
+          .from("room_invites")
+          .select("*")
+          .eq("room_code", code)
+          .eq("token", inviteToken)
+          .maybeSingle();
+        if (inviteErr) {
+          setError("Invite tracking is not enabled yet. Ask the host to share the room code.");
+          setBusy(false);
+          return;
+        }
+        if (!inviteRow || inviteRow.status !== "pending") {
+          setError("This invite was canceled or already used. Ask the host for a new invite.");
+          setBusy(false);
+          return;
+        }
+        invite = inviteRow;
       }
       const { data: existingPlayers } = await supabase
         .from("players")
@@ -494,6 +524,12 @@ function JoinRoomScreen({ code, onJoined, onBack }) {
         .select()
         .single();
       if (playerErr) throw playerErr;
+      if (invite?.id) {
+        await supabase
+          .from("room_invites")
+          .update({ status: "used", used_at: new Date().toISOString(), used_by: player.id })
+          .eq("id", invite.id);
+      }
 
       onJoined(code, player);
     } catch (e) {
@@ -527,9 +563,13 @@ function LobbyScreen({
   players,
   me,
   online,
+  pendingInvites,
+  invitesSupported,
   onStart,
   onLeave,
   onInvite,
+  onCancelInvite,
+  onCopyInvite,
   inviteStatus,
   onRoomSettingsChange,
   onRemovePlayer,
@@ -537,7 +577,8 @@ function LobbyScreen({
 }) {
   const isHost = players.length > 0 && players[0].id === me.id;
   const cat = CONTENT.categories.find((c) => c.id === room.category);
-  const inviteUrl = inviteUrlFor(room.code);
+  const latestPendingInvite = pendingInvites[0];
+  const inviteUrl = inviteUrlFor(room.code, latestPendingInvite?.token);
 
   return (
     <div style={screenWrap}>
@@ -584,16 +625,43 @@ function LobbyScreen({
         </div>
 
         <Button variant="ghost" onClick={onInvite}>
-          Invite players
+          Create invite
         </Button>
         <div style={qrPanel}>
-          <img src={qrUrlFor(room.code)} alt={`QR invite for room ${room.code}`} style={qrImage} />
+          <img src={qrUrlFor(room.code, latestPendingInvite?.token)} alt={`QR invite for room ${room.code}`} style={qrImage} />
           <div style={{ ...hintText, textAlign: "left" }}>
-            Scan to join, or share this link:
+            {latestPendingInvite ? "Latest pending invite:" : "Create an invite to generate a cancelable link:"}
             <div style={linkText}>{inviteUrl}</div>
           </div>
         </div>
         {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
+        {isHost && (
+          <div style={invitePanel}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>PENDING INVITES</div>
+            {!invitesSupported && (
+              <div style={{ ...hintText, textAlign: "left" }}>
+                Run the invite SQL migration to enable pending invite tracking.
+              </div>
+            )}
+            {invitesSupported && pendingInvites.length === 0 && (
+              <div style={{ ...hintText, textAlign: "left" }}>No pending invites.</div>
+            )}
+            {pendingInvites.map((invite) => (
+              <div key={invite.id} style={inviteRow}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 13 }}>
+                    Invite {invite.token.slice(0, 6)}
+                  </div>
+                  <div style={linkText}>{inviteUrlFor(room.code, invite.token)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
+                  <button onClick={() => onCopyInvite(invite)} style={miniBtn}>Copy</button>
+                  <button onClick={() => onCancelInvite(invite)} style={miniBtn}>Cancel</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {isHost && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1017,11 +1085,28 @@ const scoreRow = {
   padding: "4px 0",
 };
 
+const invitePanel = {
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  padding: 12,
+};
+
+const inviteRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+  padding: "10px 0",
+};
+
 // ---- Root app ---------------------------------------------------------
 
 export default function App() {
   const [view, setView] = useState("home"); // home | create | join | lobby | game
   const [joinCode, setJoinCode] = useState(null);
+  const [inviteToken, setInviteToken] = useState(null);
   const [roomCode, setRoomCode] = useState(null);
   const [me, setMe] = useState(null);
   const [room, setRoom] = useState(null);
@@ -1032,13 +1117,17 @@ export default function App() {
   const [installStatus, setInstallStatus] = useState("");
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   const [activityLog, setActivityLog] = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
+  const [invitesSupported, setInvitesSupported] = useState(true);
 
   // Restore session on mount (handles phone lock / tab reload mid-game)
   useEffect(() => {
     try {
       const invitedRoom = new URLSearchParams(window.location.search).get("room");
       if (invitedRoom) {
+        const token = new URLSearchParams(window.location.search).get("invite");
         setJoinCode(invitedRoom.toUpperCase().slice(0, 4));
+        setInviteToken(token);
         setView("join");
         return;
       }
@@ -1170,6 +1259,44 @@ export default function App() {
   }, [roomCode]);
 
   useEffect(() => {
+    if (!roomCode || !supabase) {
+      setPendingInvites([]);
+      return;
+    }
+
+    let active = true;
+
+    async function loadInvites() {
+      const { data, error } = await supabase
+        .from("room_invites")
+        .select("*")
+        .eq("room_code", roomCode)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (!active) return;
+      if (error) {
+        setInvitesSupported(false);
+        setPendingInvites([]);
+        return;
+      }
+      setInvitesSupported(true);
+      setPendingInvites(data || []);
+    }
+
+    loadInvites();
+
+    const channel = supabase
+      .channel(`room-invites-${roomCode}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "room_invites", filter: `room_code=eq.${roomCode}` }, loadInvites)
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [roomCode]);
+
+  useEffect(() => {
     if (!roomCode) {
       setActivityLog([]);
       return;
@@ -1209,6 +1336,7 @@ export default function App() {
   function handleJoined(code, player) {
     setMe(player);
     setRoomCode(code);
+    setInviteToken(null);
   }
 
   async function handleStart() {
@@ -1242,13 +1370,59 @@ export default function App() {
 
   async function handleInvite() {
     if (!roomCode) return;
-    const url = inviteUrlFor(roomCode);
+    let token = randomInviteToken();
+    if (invitesSupported) {
+      const { data, error } = await supabase
+        .from("room_invites")
+        .insert({ room_code: roomCode, token, created_by: me?.id || null })
+        .select()
+        .single();
+      if (error) {
+        setInvitesSupported(false);
+        setInviteStatus("Invite tracking is not enabled yet. Sharing the room code link instead.");
+        token = null;
+      } else {
+        token = data.token;
+        setPendingInvites((invites) => [data, ...invites]);
+      }
+    }
+    const url = inviteUrlFor(roomCode, token);
     const text = `Join my Truth/Dare room ${roomCode}: ${url}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: "Join my Truth/Dare room", text, url });
-        setInviteStatus("Invite sheet opened.");
+        setInviteStatus(token ? "Pending invite created and share sheet opened." : "Room link share sheet opened.");
       } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setInviteStatus(token ? "Pending invite created and link copied." : "Room link copied.");
+      } else {
+        setInviteStatus(text);
+      }
+    } catch (e) {
+      setInviteStatus(text);
+    }
+  }
+
+  async function handleCancelInvite(invite) {
+    if (!invite?.id) return;
+    const { error } = await supabase
+      .from("room_invites")
+      .update({ status: "canceled", canceled_at: new Date().toISOString() })
+      .eq("id", invite.id)
+      .eq("status", "pending");
+    if (error) {
+      setInviteStatus("Couldn't cancel that invite. Check the invite SQL migration.");
+      return;
+    }
+    setPendingInvites((invites) => invites.filter((item) => item.id !== invite.id));
+    setInviteStatus("Invite canceled.");
+  }
+
+  async function handleCopyInvite(invite) {
+    const url = inviteUrlFor(roomCode, invite?.token);
+    const text = `Join my Truth/Dare room ${roomCode}: ${url}`;
+    try {
+      if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
         setInviteStatus("Invite link copied.");
       } else {
@@ -1408,6 +1582,8 @@ export default function App() {
     setRoom(null);
     setPlayers([]);
     setMe(null);
+    setInviteToken(null);
+    setPendingInvites([]);
     setInviteStatus("");
     try {
       localStorage.removeItem(SESSION_KEY);
@@ -1436,6 +1612,7 @@ export default function App() {
         onCreate={() => setView("create")}
         onJoin={(code) => {
           setJoinCode(code);
+          setInviteToken(null);
           setView("join");
         }}
         onInstall={handleInstall}
@@ -1450,7 +1627,7 @@ export default function App() {
   }
 
   if (view === "join") {
-    return <JoinRoomScreen code={joinCode} onJoined={handleJoined} onBack={() => setView("home")} />;
+    return <JoinRoomScreen code={joinCode} inviteToken={inviteToken} onJoined={handleJoined} onBack={() => setView("home")} />;
   }
 
   if (view === "lobby" && room) {
@@ -1460,9 +1637,13 @@ export default function App() {
         players={players}
         me={me}
         online={online}
+        pendingInvites={pendingInvites}
+        invitesSupported={invitesSupported}
         onStart={handleStart}
         onLeave={handleLeave}
         onInvite={handleInvite}
+        onCancelInvite={handleCancelInvite}
+        onCopyInvite={handleCopyInvite}
         inviteStatus={inviteStatus}
         onRoomSettingsChange={handleRoomSettingsChange}
         onRemovePlayer={handleRemovePlayer}
