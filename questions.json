@@ -1,0 +1,101 @@
+{
+  "questionsMode": {
+    "mild": [
+      "What's a small thing that instantly improves your day?",
+      "What's a skill you wish you had?",
+      "What's the best advice you've ever received?",
+      "What's a place you've never been but really want to visit?",
+      "What's your go-to comfort food?",
+      "What's a memory that always makes you smile?",
+      "What's something you're proud of that most people don't know about?",
+      "If you could have dinner with anyone, living or dead, who would it be?"
+    ],
+    "bold": [
+      "What's a belief you held strongly that you later changed your mind about?",
+      "What's the bravest thing you've ever done?",
+      "What's something you're still figuring out about yourself?",
+      "Who has had the biggest influence on who you are today?",
+      "What's a risk you took that paid off?",
+      "What's something you'd do differently if you could go back 5 years?"
+    ],
+    "couples": [
+      "What's your favorite memory of us so far?",
+      "What made you realize you wanted to be with me?",
+      "What's something about our relationship you're most grateful for?",
+      "What's a dream you have for our future together?",
+      "What's something I do that makes you feel most loved?",
+      "What's a little quirk of mine that you secretly adore?"
+    ]
+  },
+  "categories": [
+    {
+      "id": "mild",
+      "label": "Mild",
+      "color": "#3DDC97",
+      "truths": [
+        "What's the most embarrassing thing in your search history?",
+        "Who was your first celebrity crush?",
+        "What's a lie you told that you never got caught for?",
+        "What's the weirdest thing you've ever eaten?",
+        "What app do you spend the most time on?",
+        "What's your most useless talent?",
+        "What's the last thing you Googled?",
+        "What's your worst habit?"
+      ],
+      "dares": [
+        "Talk in an accent for the next 3 rounds.",
+        "Let the group post anything on your story.",
+        "Do your best impression of someone in the room.",
+        "Send a voice memo singing the chorus of your favorite song.",
+        "Let someone else answer your next 3 texts.",
+        "Do 10 jumping jacks right now.",
+        "Speak only in questions until your next turn.",
+        "Show the group your camera roll's 5th most recent photo."
+      ]
+    },
+    {
+      "id": "bold",
+      "label": "Bold",
+      "color": "#FF6B6B",
+      "truths": [
+        "What's something you'd never admit to your parents?",
+        "Have you ever cheated on a test, partner, or game?",
+        "What's the boldest thing you've done to get someone's attention?",
+        "What's a secret you've never told anyone in this room?",
+        "What's the riskiest thing you've ever done for love?",
+        "Who in this room would you trust with a secret, and who wouldn't you?"
+      ],
+      "dares": [
+        "Let the group go through your texts for 30 seconds.",
+        "Call a friend and tell them you love them, no context.",
+        "Do an embarrassing dance for 30 seconds.",
+        "Let someone draw on your face with a marker.",
+        "Reveal the last thing you searched on your phone.",
+        "Prank call someone in your contacts."
+      ]
+    },
+    {
+      "id": "couples",
+      "label": "Couples / Flirty",
+      "color": "#E0529C",
+      "truths": [
+        "What was your first impression of me, really?",
+        "What's a small thing I do that you secretly love?",
+        "What's the most attracted you've ever been to me?",
+        "What's a fantasy date you've never told me about?",
+        "What's one thing you find irresistible in a partner?",
+        "What's the moment you knew you were falling for me?",
+        "What's something flirty you've always wanted to say to me but haven't?"
+      ],
+      "dares": [
+        "Whisper the nicest thing you've ever thought about me.",
+        "Give me a slow, lingering hug for 20 seconds.",
+        "Write a flirty one-line text and send it to me right now.",
+        "Hold eye contact with me for 30 seconds without laughing.",
+        "Describe your perfect date with me in 3 sentences.",
+        "Give me a compliment you've never said out loud before.",
+        "Slow dance with me for 30 seconds, no music needed."
+      ]
+    }
+  ]
+}
