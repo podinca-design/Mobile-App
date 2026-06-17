@@ -173,6 +173,10 @@ function randomInviteToken() {
   return out;
 }
 
+function firstNameOnly(value) {
+  return String(value || "").trim().split(/\s+/)[0]?.slice(0, 24) || "";
+}
+
 function pickTruthOrDare(room, kind) {
   const cat = CONTENT.categories.find((c) => c.id === room.category) || CONTENT.categories[0];
   const pool = kind === "truth" ? cat.truths : cat.dares;
@@ -287,14 +291,21 @@ function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall }) 
 
   return (
     <div style={screenWrap}>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div style={eyebrow}>PASS · REVEAL · DARE</div>
-          <h1 style={heroTitle}>
-            Truth<span style={{ color: "#FF5A4E" }}>/</span>Dare
-          </h1>
-          <p style={{ color: "#9C97AE", fontSize: 15, marginTop: 10, fontFamily: "'Manrope', sans-serif" }}>
-            Everyone joins from their own phone. One card at a time.
+      <div style={ambientStage}>
+        <div style={heroCardBack} />
+        <div style={heroCardMid} />
+        <div style={heroCardFront}>
+          <div style={heroCardMark}>?</div>
+          <div style={heroCardRule}>TRUTH</div>
+          <div style={heroCardRuleAlt}>DARE</div>
+        </div>
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: 24 }}>
+        <div style={{ textAlign: "left", marginBottom: 32 }}>
+          <div style={eyebrow}>PRIVATE PARTY GAME</div>
+          <h1 style={heroTitle}>Afterparty</h1>
+          <p style={heroCopy}>
+            Truth, dares, penalties, invites, and host controls built for the phone in your hand.
           </p>
         </div>
 
@@ -303,7 +314,7 @@ function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall }) 
             <Button accent="#34D6B0" onClick={onCreate}>
               Host a new room
             </Button>
-            <Button variant="outline" accent="#9C97AE" onClick={() => setMode("join")}>
+            <Button variant="outline" accent="#E9E7F0" onClick={() => setMode("join")}>
               Join with a code
             </Button>
             <Button variant="ghost" onClick={onInstall}>
@@ -348,14 +359,13 @@ function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall }) 
     </div>
   );
 }
-
 function ConfigScreen() {
   return (
     <div style={screenWrap}>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 18 }}>
         <div style={eyebrow}>SUPABASE CONFIG REQUIRED</div>
         <h1 style={heroTitle}>
-          Truth<span style={{ color: "#FF5A4E" }}>/</span>Dare
+          Afterparty
         </h1>
         <p style={{ color: "#D8D3E6", fontSize: 15, lineHeight: 1.55, fontFamily: "'Manrope', sans-serif", margin: 0 }}>
           Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the existing demo Supabase project before running or deploying this branch.
@@ -459,9 +469,33 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [inviteLabel, setInviteLabel] = useState("");
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    let active = true;
+
+    async function loadInviteLabel() {
+      const { data } = await supabase
+        .from("room_invites")
+        .select("invitee_name")
+        .eq("room_code", code)
+        .eq("token", inviteToken)
+        .maybeSingle();
+      if (!active || !data) return;
+      const firstName = firstNameOnly(data.invitee_name);
+      setInviteLabel(firstName);
+      if (firstName) setName(firstName);
+    }
+
+    loadInviteLabel();
+    return () => {
+      active = false;
+    };
+  }, [code, inviteToken]);
 
   async function handleJoin() {
-    if (!name.trim()) return;
+    if (!name.trim() && !inviteToken) return;
     setBusy(true);
     setError("");
     try {
@@ -493,8 +527,29 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
           setBusy(false);
           return;
         }
-        if (!inviteRow || inviteRow.status !== "pending") {
-          setError("This invite was canceled or already used. Ask the host for a new invite.");
+        if (!inviteRow) {
+          setError("This invite is no longer available. Ask the host for a new invite.");
+          setBusy(false);
+          return;
+        }
+        if (inviteRow.status === "canceled") {
+          setError("This invite was canceled. Ask the host for a new invite.");
+          setBusy(false);
+          return;
+        }
+        if (inviteRow.status === "used" && inviteRow.used_by) {
+          const { data: existingPlayer } = await supabase
+            .from("players")
+            .select("*")
+            .eq("id", inviteRow.used_by)
+            .maybeSingle();
+          if (existingPlayer) {
+            onJoined(code, existingPlayer);
+            return;
+          }
+        }
+        if (inviteRow.status !== "pending") {
+          setError("This invite is no longer available. Ask the host for a new invite.");
           setBusy(false);
           return;
         }
@@ -511,7 +566,8 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
         setBusy(false);
         return;
       }
-      if (roster.some((player) => player.name.trim().toLowerCase() === name.trim().toLowerCase())) {
+      const joinName = invite?.invitee_name ? firstNameOnly(invite.invitee_name) : firstNameOnly(name);
+      if (roster.some((player) => player.name.trim().toLowerCase() === joinName.toLowerCase())) {
         setError("That name is already in the room. Add an initial or nickname.");
         setBusy(false);
         return;
@@ -520,7 +576,7 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
       const nextOrder = roster.length;
       const { data: player, error: playerErr } = await supabase
         .from("players")
-        .insert({ room_code: code, name: name.trim(), join_order: nextOrder })
+        .insert({ room_code: code, name: joinName, join_order: nextOrder })
         .select()
         .single();
       if (playerErr) throw playerErr;
@@ -544,13 +600,13 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 24 }}>
         <div>
           <div style={eyebrow}>JOINING ROOM {code}</div>
-          <h2 style={sectionTitle}>What's your name?</h2>
+          <h2 style={sectionTitle}>{inviteLabel ? `Welcome, ${inviteLabel}` : "What's your name?"}</h2>
         </div>
         <Field label="Your name" htmlFor="join-name">
-          <TextField id="join-name" value={name} onChange={setName} placeholder="Your name" autoFocus maxLength={20} onEnter={handleJoin} />
+          <TextField id="join-name" value={name} onChange={setName} placeholder="Your first name" autoFocus maxLength={20} onEnter={handleJoin} />
         </Field>
         {error && <div style={{ color: "#FF5A4E", fontSize: 13, fontFamily: "'Manrope', sans-serif" }}>{error}</div>}
-        <Button accent="#34D6B0" disabled={!name.trim() || busy} onClick={handleJoin}>
+        <Button accent="#34D6B0" disabled={(!name.trim() && !inviteToken) || busy} onClick={handleJoin}>
           {busy ? "Joining…" : "Join room"}
         </Button>
       </div>
@@ -628,7 +684,7 @@ function LobbyScreen({
         {isHost && (
           <TextField
             value={inviteeName}
-            onChange={setInviteeName}
+            onChange={(value) => setInviteeName(firstNameOnly(value))}
             placeholder="Invitee name"
             maxLength={24}
             ariaLabel="Invitee name"
@@ -636,6 +692,7 @@ function LobbyScreen({
         )}
         <Button
           variant="ghost"
+          disabled={isHost && !firstNameOnly(inviteeName)}
           onClick={() => {
             onInvite(inviteeName);
             setInviteeName("");
@@ -666,10 +723,7 @@ function LobbyScreen({
               <div key={invite.id} style={inviteRow}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: "'Manrope', sans-serif", fontWeight: 800, fontSize: 13 }}>
-                    {invite.invitee_name || `Invite ${invite.token.slice(0, 6)}`}
-                  </div>
-                  <div style={mutedSmallText}>
-                    Pending invite created {new Date(invite.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    {firstNameOnly(invite.invitee_name)}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
@@ -981,7 +1035,7 @@ const hintText = {
 
 const screenWrap = {
   minHeight: "100vh",
-  background: "#0B0B10",
+  background: "radial-gradient(circle at 25% 10%, #263044 0, #11131E 34%, #07070B 100%)",
   color: "#F4F2FA",
   padding: "24px 22px",
   boxSizing: "border-box",
@@ -1003,9 +1057,88 @@ const eyebrow = {
 const heroTitle = {
   fontFamily: "'Sora', sans-serif",
   fontWeight: 800,
-  fontSize: 56,
-  letterSpacing: "-0.02em",
+  fontSize: 58,
+  letterSpacing: "0",
   margin: 0,
+  lineHeight: 0.96,
+  color: "#F8F3E8",
+};
+
+const heroCopy = {
+  color: "#CFC8DD",
+  fontSize: 15,
+  lineHeight: 1.55,
+  marginTop: 14,
+  fontFamily: "'Manrope', sans-serif",
+};
+
+const ambientStage = {
+  position: "relative",
+  height: 250,
+  margin: "18px 0 28px",
+  borderRadius: 24,
+  overflow: "hidden",
+  background: "linear-gradient(150deg, rgba(52,214,176,0.16), rgba(255,90,78,0.18) 48%, rgba(255,184,77,0.14))",
+  border: "1px solid rgba(255,255,255,0.12)",
+  boxShadow: "0 24px 70px rgba(0,0,0,0.42)",
+};
+
+const heroCardBase = {
+  position: "absolute",
+  width: 150,
+  height: 205,
+  borderRadius: 22,
+  border: "1px solid rgba(255,255,255,0.2)",
+  boxShadow: "0 24px 45px rgba(0,0,0,0.38)",
+};
+
+const heroCardBack = {
+  ...heroCardBase,
+  right: 42,
+  top: 30,
+  transform: "rotate(15deg)",
+  background: "linear-gradient(160deg, #33215A, #10131F)",
+};
+
+const heroCardMid = {
+  ...heroCardBase,
+  right: 105,
+  top: 24,
+  transform: "rotate(-12deg)",
+  background: "linear-gradient(160deg, #173E39, #0D111C)",
+};
+
+const heroCardFront = {
+  ...heroCardBase,
+  left: 32,
+  top: 22,
+  background: "linear-gradient(160deg, #F8F3E8, #D8C7A0)",
+  color: "#0B0B10",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  padding: 18,
+  boxSizing: "border-box",
+};
+
+const heroCardMark = {
+  fontFamily: "'Sora', sans-serif",
+  fontSize: 58,
+  fontWeight: 800,
+  lineHeight: 1,
+};
+
+const heroCardRule = {
+  fontFamily: "'Manrope', sans-serif",
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: "0.18em",
+};
+
+const heroCardRuleAlt = {
+  ...heroCardRule,
+  alignSelf: "flex-end",
+  color: "#B33A33",
 };
 
 const sectionTitle = {
@@ -1396,7 +1529,14 @@ export default function App() {
   async function handleInvite(inviteeName = "") {
     if (!roomCode) return;
     let token = randomInviteToken();
-    const label = inviteeName.trim();
+    let label = firstNameOnly(inviteeName);
+    if (!label) {
+      label = firstNameOnly(window.prompt("Invitee first name") || "");
+    }
+    if (!label) {
+      setInviteStatus("Enter an invitee first name before creating an invite.");
+      return;
+    }
     if (invitesSupported) {
       const { data, error } = await supabase
         .from("room_invites")
@@ -1705,3 +1845,4 @@ export default function App() {
     </div>
   );
 }
+

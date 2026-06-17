@@ -1,7 +1,7 @@
 {
-  "name": "Truth/Dare Party",
-  "short_name": "Truth/Dare",
-  "description": "A multiplayer Truth/Dare and questions party game.",
+  "name": "Afterparty",
+  "short_name": "Afterparty",
+  "description": "A premium multiplayer party game for truths, dares, penalties, and host-led invites.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
