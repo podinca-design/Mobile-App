@@ -153,14 +153,14 @@ const CONTENT = {
       "label": "Bold",
       "accent": "#FF5A4E",
       "truths": [
-        "What's something you'd never admit to your parents?",
-        "Have you ever cheated on a test, partner, or game?",
-        "What's the boldest thing you've done to get someone's attention?",
-        "What's a secret you've never told anyone in this room?",
-        "What's the riskiest thing you've ever done for love?",
-        "Who in this room would you trust with a secret, and who wouldn't you?",
-        "What's the most trouble you've been in and not gotten caught for?",
-        "What's a white lie you tell often?"
+        "Who here would you flirt with if you knew they were into it?",
+        "What is your biggest green flag when you like someone?",
+        "What is your most obvious tell when you are attracted to someone?",
+        "Who here makes you the most curious?",
+        "What compliment gets under your skin in a good way?",
+        "What is your type, even if you pretend you do not have one?",
+        "What is a crush behavior you are guilty of?",
+        "What is one thing someone can do that instantly gets your attention?"
       ],
       "dares": [
         "Let the group go through your texts for 30 seconds.",
@@ -375,52 +375,52 @@ const CONTENT = {
       "truths": [
         {
           "id": "spicy_truth_001",
-          "text": "What kind of touch gets your attention fastest when the chemistry is already there?",
+          "text": "What kind of touch gives you butterflies?",
           "intensity": 3
         },
         {
           "id": "spicy_truth_002",
-          "text": "What is one body part you find attractive that people do not talk about enough?",
+          "text": "What body feature do you notice first?",
           "intensity": 3
         },
         {
           "id": "spicy_truth_003",
-          "text": "What type of kiss gets you in trouble the fastest?",
+          "text": "What makes a kiss unforgettable?",
           "intensity": 4
         },
         {
           "id": "spicy_truth_004",
-          "text": "What is one clothing item someone can wear that immediately gets your attention?",
+          "text": "What outfit gets your attention fastest?",
           "intensity": 3
         },
         {
           "id": "spicy_truth_005",
-          "text": "What is one flirty move that works on you even when you know exactly what they are doing?",
+          "text": "What flirty move works on you every time?",
           "intensity": 3
         },
         {
           "id": "spicy_truth_006",
-          "text": "What is one compliment about your body that would make you blush?",
+          "text": "What compliment would make you blush?",
           "intensity": 4
         },
         {
           "id": "spicy_truth_007",
-          "text": "What is the boldest kind of kiss you would say yes to in the right moment?",
+          "text": "What is your favorite kind of chemistry?",
           "intensity": 4
         },
         {
           "id": "spicy_truth_008",
-          "text": "What is one thing you wear when you want to feel dangerously attractive?",
-          "intensity": 3
+          "text": "What makes someone hard to resist?",
+          "intensity": 4
         },
         {
           "id": "spicy_truth_009",
-          "text": "What is one part of your body you are most confident about?",
+          "text": "What part of yourself are you most confident about?",
           "intensity": 3
         },
         {
           "id": "spicy_truth_010",
-          "text": "What is one adult-only dare you would consider saying yes to with the right person?",
+          "text": "What is a spicy secret you can say out loud?",
           "intensity": 4
         }
       ],
@@ -576,53 +576,53 @@ const CONTENT = {
       "truths": [
         {
           "id": "wild_truth_001",
-          "text": "Who here gives the most dangerous innocent smile?",
+          "text": "Who here looks like trouble in the best way?",
           "intensity": 2
         },
         {
           "id": "wild_truth_002",
-          "text": "What is the wildest harmless thing you have done to get someone's attention?",
-          "intensity": 3
+          "text": "Who here would you trust with a secret and a bad idea?",
+          "intensity": 2
         },
         {
           "id": "wild_truth_003",
-          "text": "What is one physical feature you are most confident about?",
-          "intensity": 3
-        },
-        {
-          "id": "wild_truth_004",
-          "text": "What is the boldest compliment you have ever given?",
-          "intensity": 3
-        },
-        {
-          "id": "wild_truth_005",
-          "text": "What is one outfit you wore that made you feel unstoppable?",
-          "intensity": 2
-        },
-        {
-          "id": "wild_truth_006",
-          "text": "Who here looks like they would be the best bad influence?",
-          "intensity": 2
-        },
-        {
-          "id": "wild_truth_007",
           "text": "What is your most dangerous flirting habit?",
           "intensity": 3
         },
         {
+          "id": "wild_truth_004",
+          "text": "What outfit makes you feel unstoppable?",
+          "intensity": 2
+        },
+        {
+          "id": "wild_truth_005",
+          "text": "Who here would be the best bad influence?",
+          "intensity": 2
+        },
+        {
+          "id": "wild_truth_006",
+          "text": "What is the boldest compliment you would actually say out loud?",
+          "intensity": 3
+        },
+        {
+          "id": "wild_truth_007",
+          "text": "What is your most chaotic dating opinion?",
+          "intensity": 3
+        },
+        {
           "id": "wild_truth_008",
-          "text": "What is one thing you would only admit after midnight?",
+          "text": "What do people underestimate about your wild side?",
           "intensity": 3
         },
         {
           "id": "wild_truth_009",
-          "text": "What is the most trouble you have talked your way out of?",
-          "intensity": 3
+          "text": "What is your most harmless red flag?",
+          "intensity": 2
         },
         {
           "id": "wild_truth_010",
-          "text": "What is one thing people underestimate about your wild side?",
-          "intensity": 3
+          "text": "Who here gives main character energy tonight?",
+          "intensity": 2
         }
       ],
       "dares": [
@@ -761,53 +761,53 @@ const CONTENT = {
     "bold": [
       {
         "id": "bold_question_001",
-        "text": "What is a truth about your personality that most people only learn after getting close to you?",
+        "text": "Who here is closest to your type?",
         "intensity": 3
       },
       {
         "id": "bold_question_002",
-        "text": "What is one experience that changed how you approach trust?",
+        "text": "What makes you catch feelings fast?",
         "intensity": 3
       },
       {
         "id": "bold_question_003",
-        "text": "What is a pattern in your dating or friendship history that you have had to outgrow?",
+        "text": "What is your biggest flirt weakness?",
         "intensity": 3
       },
       {
         "id": "bold_question_004",
-        "text": "What kind of attention makes you feel genuinely seen instead of just noticed?",
-        "intensity": 3
-      },
-      {
-        "id": "bold_question_005",
-        "text": "What is one emotional risk you took that taught you something about yourself?",
-        "intensity": 3
-      },
-      {
-        "id": "bold_question_006",
-        "text": "What is a boundary you did not always have, but you protect now?",
+        "text": "What is your favorite kind of attention?",
         "intensity": 2
       },
       {
+        "id": "bold_question_005",
+        "text": "What makes someone instantly more attractive?",
+        "intensity": 2
+      },
+      {
+        "id": "bold_question_006",
+        "text": "What is your soft spot?",
+        "intensity": 3
+      },
+      {
         "id": "bold_question_007",
-        "text": "What do people often misunderstand about the way you show interest?",
+        "text": "What is your most obvious crush sign?",
         "intensity": 2
       },
       {
         "id": "bold_question_008",
-        "text": "What is one compliment you still remember because it felt unusually accurate?",
+        "text": "What compliment always works on you?",
         "intensity": 2
       },
       {
         "id": "bold_question_009",
-        "text": "What part of your confidence is real, and what part are you still building?",
+        "text": "What do you pretend not to like, but secretly do?",
         "intensity": 3
       },
       {
         "id": "bold_question_010",
-        "text": "What is one thing you wish people asked you about more often?",
-        "intensity": 2
+        "text": "What makes you nervous in a good way?",
+        "intensity": 3
       }
     ],
     "couples": [
@@ -821,154 +821,154 @@ const CONTENT = {
     "wild": [
       {
         "id": "wild_question_001",
-        "text": "What is the most impulsive decision that actually revealed something true about you?",
+        "text": "Who here would you text after midnight?",
         "intensity": 3
       },
       {
         "id": "wild_question_002",
-        "text": "When do you become the most unpredictable version of yourself?",
+        "text": "Who here looks like a bad decision?",
         "intensity": 3
       },
       {
         "id": "wild_question_003",
-        "text": "What is a reputation you secretly enjoy having?",
+        "text": "What is your chaos type?",
         "intensity": 2
       },
       {
         "id": "wild_question_004",
-        "text": "What is one thing you have done for attention that you can admit now?",
+        "text": "What red flag do you find a little attractive?",
         "intensity": 3
       },
       {
         "id": "wild_question_005",
-        "text": "What kind of person brings out your reckless side?",
-        "intensity": 3
+        "text": "Who here has the best flirt energy?",
+        "intensity": 2
       },
       {
         "id": "wild_question_006",
-        "text": "What is the most charming bad habit you have?",
+        "text": "What is your most charming bad habit?",
         "intensity": 2
       },
       {
         "id": "wild_question_007",
-        "text": "What is one story from your past that explains your sense of humor?",
-        "intensity": 2
+        "text": "What is your favorite kind of trouble?",
+        "intensity": 3
       },
       {
         "id": "wild_question_008",
-        "text": "What is your most chaotic green flag?",
+        "text": "Who here would get you into trouble fastest?",
         "intensity": 2
       },
       {
         "id": "wild_question_009",
-        "text": "What is something you usually only admit after midnight?",
+        "text": "What would you confess after two drinks?",
         "intensity": 3
       },
       {
         "id": "wild_question_010",
-        "text": "What kind of compliment makes you act like it did not work, even though it did?",
-        "intensity": 2
+        "text": "What bad idea still sounds fun?",
+        "intensity": 3
       },
       {
         "id": "wild_question_011",
-        "text": "What is one side of you that only comes out in the right room?",
-        "intensity": 3
+        "text": "Who here would survive a dating show?",
+        "intensity": 2
       },
       {
         "id": "wild_question_012",
-        "text": "What is one lesson you learned from a night that got out of hand?",
-        "intensity": 3
+        "text": "What makes a party instantly better?",
+        "intensity": 1
       },
       {
         "id": "wild_question_013",
-        "text": "What is one rule you break in your head before you ever break it out loud?",
+        "text": "Who here has dangerous eye contact?",
         "intensity": 3
       },
       {
         "id": "wild_question_014",
-        "text": "What is one thing you do when you are flirting before you realize you are flirting?",
+        "text": "What compliment makes you fold?",
         "intensity": 2
       },
       {
         "id": "wild_question_015",
-        "text": "What is your most harmless but revealing confession?",
+        "text": "What is your guilty flirt move?",
         "intensity": 2
       }
     ],
     "spicy": [
       {
         "id": "spicy_question_001",
-        "text": "What did your first serious intimate connection teach you about what you need from someone?",
+        "text": "What was your best kiss like?",
         "intensity": 4
       },
       {
         "id": "spicy_question_002",
-        "text": "What is one past romantic or sexual experience that changed your confidence?",
+        "text": "What past experience made you more confident?",
         "intensity": 4
       },
       {
         "id": "spicy_question_003",
-        "text": "What is something you used to be shy about that you are more comfortable owning now?",
+        "text": "What are you shy about until chemistry kicks in?",
         "intensity": 3
       },
       {
         "id": "spicy_question_004",
-        "text": "What kind of chemistry makes you feel safe enough to be bold?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_005",
-        "text": "What is one boundary you learned from experience rather than theory?",
+        "text": "What makes intimacy feel safe?",
         "intensity": 3
       },
       {
+        "id": "spicy_question_005",
+        "text": "What boundary matters most to you?",
+        "intensity": 2
+      },
+      {
         "id": "spicy_question_006",
-        "text": "What is a moment when attraction surprised you?",
+        "text": "What kind of attraction surprises you?",
         "intensity": 3
       },
       {
         "id": "spicy_question_007",
-        "text": "What kind of kiss from your past do you still remember, and why?",
+        "text": "What kiss do you still remember?",
         "intensity": 4
       },
       {
         "id": "spicy_question_008",
-        "text": "What is one thing an old crush or partner helped you learn about yourself?",
+        "text": "What did an ex or old crush teach you?",
         "intensity": 3
       },
       {
         "id": "spicy_question_009",
-        "text": "What makes intimacy feel meaningful to you instead of just exciting?",
+        "text": "What makes chemistry feel real?",
         "intensity": 4
       },
       {
         "id": "spicy_question_010",
-        "text": "What is one private compliment you have received that stayed with you?",
+        "text": "What private compliment stayed with you?",
         "intensity": 4
       },
       {
         "id": "spicy_question_011",
-        "text": "What is something you wish people understood about your desire or attraction style?",
+        "text": "What turns you on emotionally?",
         "intensity": 4
       },
       {
         "id": "spicy_question_012",
-        "text": "What is one experience that taught you the difference between attention and real chemistry?",
-        "intensity": 4
+        "text": "What is your biggest intimacy green flag?",
+        "intensity": 3
       },
       {
         "id": "spicy_question_013",
-        "text": "What kind of non-graphic memory from a past intimate moment still makes you smile?",
+        "text": "What memory still makes you smile?",
         "intensity": 4
       },
       {
         "id": "spicy_question_014",
-        "text": "What is one lesson from your past that made you better at consent or communication?",
+        "text": "What made you better at saying what you want?",
         "intensity": 3
       },
       {
         "id": "spicy_question_015",
-        "text": "What is a spicy truth about you that is more emotional than physical?",
+        "text": "What spicy truth is more emotional than physical?",
         "intensity": 4
       }
     ]
@@ -1502,6 +1502,7 @@ function LobbyScreen({
   pendingInvites,
   invitesSupported,
   onStart,
+  onReturnToGame,
   onLeave,
   onInvite,
   onCancelInvite,
@@ -1658,8 +1659,12 @@ function LobbyScreen({
         )}
 
         {isHost ? (
-          <Button accent={cat?.accent} disabled={players.length < 2} onClick={onStart}>
-            {players.length < 2 ? "Waiting for more players..." : "Start game"}
+          <Button
+            accent={cat?.accent}
+            disabled={room.status !== "playing" && players.length < 2}
+            onClick={room.status === "playing" ? onReturnToGame : onStart}
+          >
+            {room.status === "playing" ? "Return to game" : players.length < 2 ? "Waiting for more players..." : "Start game"}
           </Button>
         ) : (
           <div style={{ textAlign: "center", color: "#9C97AE", fontSize: 14, fontFamily: "'Manrope', sans-serif" }}>
@@ -1681,6 +1686,7 @@ function GameScreen({
   onLeave,
   onInvite,
   onEndGame,
+  onBackToLobby,
   onSkipPlayer,
   onRemovePlayer,
   onShareRecap,
@@ -1839,7 +1845,10 @@ function GameScreen({
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="ghost" disabled={busy} onClick={onShareRecap}>Share recap</Button>
-              <Button variant="ghost" disabled={busy} onClick={onEndGame}>Return to lobby</Button>
+              <Button variant="ghost" disabled={busy} onClick={onBackToLobby}>Lobby</Button>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="outline" accent="#FF5A4E" disabled={busy} onClick={onEndGame}>End for everyone</Button>
             </div>
           </div>
         )}
@@ -2344,6 +2353,7 @@ export default function App() {
         if (payload.eventType === "DELETE") return;
         setRoom(payload.new);
         if (payload.new.status === "playing") setView("game");
+        else setView("lobby");
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "players", filter: `room_code=eq.${roomCode}` }, () => {
         supabase
@@ -2474,6 +2484,14 @@ export default function App() {
     } finally {
       setActionInFlight(false);
     }
+  }
+
+  function handleBackToLobby() {
+    setView("lobby");
+  }
+
+  function handleReturnToGame() {
+    setView("game");
   }
 
   async function handleRoomSettingsChange(nextSettings) {
@@ -2785,6 +2803,7 @@ export default function App() {
         pendingInvites={pendingInvites}
         invitesSupported={invitesSupported}
         onStart={handleStart}
+        onReturnToGame={handleReturnToGame}
         onLeave={handleLeave}
         onInvite={handleInvite}
         onCancelInvite={handleCancelInvite}
@@ -2809,6 +2828,7 @@ export default function App() {
         onLeave={handleLeave}
         onInvite={handleInvite}
         onEndGame={handleEndGame}
+        onBackToLobby={handleBackToLobby}
         onSkipPlayer={handleSkipPlayer}
         onRemovePlayer={handleRemovePlayer}
         onShareRecap={handleShareRecap}
