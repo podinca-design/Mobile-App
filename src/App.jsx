@@ -420,14 +420,14 @@ const CONTENT = {
         },
         {
           "id": "spicy_truth_010",
-          "text": "What is a spicy secret you can say out loud?",
+          "text": "Tell a sexual fantasy or desire you have yet to fulfill?",
           "intensity": 4
         }
       ],
       "dares": [
         {
           "id": "spicy_dare_001",
-          "text": "Ask one player if you may hold their hand for the next prompt. Ask once only. If they say no, you fail the dare.",
+          "text": "Convince the player  to your left to remove one article of clothing(no accessories or outwear). Ask once only. If they say no, you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
@@ -532,7 +532,7 @@ const CONTENT = {
         },
         {
           "id": "spicy_dare_010",
-          "text": "Ask one player if you may put your arm around their shoulder or waist for the next prompt. They choose what feels okay. Ask once only. If they say no, you fail the dare.",
+          "text": "Allow one player to kiss your 'favorite erotic' area for 15 seconds. If they refuse you fail. If you refuse you fail the dare.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
@@ -686,7 +686,7 @@ const CONTENT = {
         },
         {
           "id": "wild_dare_006",
-          "text": "Show one body area you personally consent to show in this private 21+ setting. You control what is shown. No one else may choose for you.",
+          "text": "Show one body area that the person to your right chooses?",
           "requires_self_consent": true,
           "adult_body_reveal": true,
           "penalty": {
@@ -698,7 +698,7 @@ const CONTENT = {
         },
         {
           "id": "wild_dare_007",
-          "text": "Ask one player if you may put your arm around their shoulder or waist for the next prompt. They choose what feels okay. Ask once only. If they say no, you fail the dare.",
+          "text": "Demonstrate Falacio or cungilingus on the player of your choice using their finger as your demonstration area.",
           "requires_consent": true,
           "penalty": {
             "type": "shots",
