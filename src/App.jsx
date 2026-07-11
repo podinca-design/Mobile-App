@@ -5,6 +5,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 const SESSION_KEY = "td_session";
+const LOCAL_GAME_KEY = "td_single_device_game";
 const MAX_PLAYERS = 12;
 const ROOM_TTL_HOURS = 18;
 const ADULT_CATEGORY_IDS = new Set(["spicy", "wild", "couples"]);
@@ -1023,6 +1024,10 @@ function randomInviteToken() {
   return out;
 }
 
+function localId(prefix = "local") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function firstNameOnly(value) {
   return String(value || "").replace(/\s+/g, "").slice(0, 24);
 }
@@ -1135,7 +1140,7 @@ function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus
 
 // ---- Screens -------------------------------------------------------------
 
-function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall }) {
+function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall, hasSavedLocal, onResumeLocal }) {
   const [joinCode, setJoinCode] = useState("");
   const [mode, setMode] = useState("home"); // home | join
 
@@ -1155,14 +1160,22 @@ function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall }) 
           <div style={eyebrow}>PRIVATE PARTY GAME</div>
           <h1 style={heroTitle}>Afterparty</h1>
           <p style={heroCopy}>
-            Truth, dares, penalties, invites, and host controls built for the phone in your hand.
+            Play pass-the-phone on one device or invite everyone into the same room.
           </p>
         </div>
 
         {mode === "home" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Button accent="#34D6B0" onClick={onCreate}>
-              Host a new room
+            {hasSavedLocal && (
+              <Button accent="#FFB84D" onClick={onResumeLocal}>
+                Resume single device game
+              </Button>
+            )}
+            <Button accent="#34D6B0" onClick={() => onCreate("single_device")}>
+              Single device
+            </Button>
+            <Button variant="outline" accent="#E9E7F0" onClick={() => onCreate("multiplayer")}>
+              Multiplayer
             </Button>
             <Button variant="outline" accent="#E9E7F0" onClick={() => setMode("join")}>
               Join with a code
@@ -1225,19 +1238,56 @@ function ConfigScreen() {
   );
 }
 
-function CreateRoomScreen({ onRoomCreated, onBack }) {
+function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack }) {
   const [name, setName] = useState("");
+  const [playerNames, setPlayerNames] = useState([""]);
   const [gameMode, setGameMode] = useState("truth_dare");
   const [category, setCategory] = useState("mild");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const needsAgeGate = true;
+  const isSingleDevice = playMode === "single_device";
+
+  function cleanLocalNames() {
+    return [name, ...playerNames]
+      .map((item) => firstNameOnly(item))
+      .filter(Boolean)
+      .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
+      .slice(0, MAX_PLAYERS);
+  }
 
   async function handleCreate() {
     if (!name.trim()) return;
     if (needsAgeGate && !ageConfirmed) {
       setError("Confirm everyone is 21+ and consents to adult-only content before creating this room.");
+      return;
+    }
+    if (isSingleDevice) {
+      const names = cleanLocalNames();
+      if (names.length < 2) {
+        setError("Add at least 2 players for a single device game.");
+        return;
+      }
+      const code = `LOCAL-${Date.now()}`;
+      const localPlayers = names.map((playerName, index) => ({
+        id: localId("player"),
+        room_code: code,
+        name: playerName,
+        join_order: index,
+      }));
+      const localRoom = {
+        code,
+        play_mode: "single_device",
+        game_mode: gameMode,
+        category,
+        status: "lobby",
+        current_player_index: 0,
+        current_prompt: null,
+        current_type: null,
+        created_at: new Date().toISOString(),
+      };
+      onLocalRoomCreated(localRoom, localPlayers, localPlayers[0]);
       return;
     }
     setBusy(true);
@@ -1278,13 +1328,51 @@ function CreateRoomScreen({ onRoomCreated, onBack }) {
       <button onClick={onBack} style={backBtn}>← Back</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 28 }}>
         <div>
-          <div style={eyebrow}>STEP 1 OF 1</div>
-          <h2 style={sectionTitle}>Set up the room</h2>
+          <div style={eyebrow}>{isSingleDevice ? "SINGLE DEVICE" : "MULTIPLAYER"}</div>
+          <h2 style={sectionTitle}>{isSingleDevice ? "Set up the pass-around game" : "Set up the room"}</h2>
         </div>
 
-        <Field label="Your name" htmlFor="create-name">
-          <TextField id="create-name" value={name} onChange={setName} placeholder="What should we call you?" autoFocus maxLength={20} />
+        <Field label={isSingleDevice ? "Host player" : "Your name"} htmlFor="create-name">
+          <TextField id="create-name" value={name} onChange={setName} placeholder="First name" autoFocus maxLength={20} />
         </Field>
+
+        {isSingleDevice && (
+          <Field label="Players">
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {playerNames.map((playerName, index) => (
+                <div key={index} style={{ display: "flex", gap: 8 }}>
+                  <TextField
+                    value={playerName}
+                    onChange={(value) =>
+                      setPlayerNames((names) => names.map((item, itemIndex) => (itemIndex === index ? value : item)))
+                    }
+                    placeholder={`Player ${index + 2}`}
+                    maxLength={20}
+                  />
+                  {playerNames.length > 1 && (
+                    <button
+                      type="button"
+                      style={miniBtn}
+                      onClick={() => setPlayerNames((names) => names.filter((_, itemIndex) => itemIndex !== index))}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+              <Button
+                variant="ghost"
+                disabled={cleanLocalNames().length >= MAX_PLAYERS}
+                onClick={() => setPlayerNames((names) => [...names, ""])}
+              >
+                Add player
+              </Button>
+              <div style={{ ...hintText, textAlign: "left" }}>
+                Enter everyone here. The phone gets passed to each player on their turn.
+              </div>
+            </div>
+          </Field>
+        )}
 
         <Field label="Game mode">
           <SegmentedControl
@@ -1326,8 +1414,12 @@ function CreateRoomScreen({ onRoomCreated, onBack }) {
 
         {error && <div style={{ color: "#FF5A4E", fontSize: 13, fontFamily: "'Manrope', sans-serif" }}>{error}</div>}
 
-        <Button accent={categoryAccent(category)} disabled={!name.trim() || (needsAgeGate && !ageConfirmed) || busy} onClick={handleCreate}>
-          {busy ? "Creating..." : "Create room"}
+        <Button
+          accent={categoryAccent(category)}
+          disabled={!name.trim() || (isSingleDevice && cleanLocalNames().length < 2) || (needsAgeGate && !ageConfirmed) || busy}
+          onClick={handleCreate}
+        >
+          {busy ? "Creating..." : isSingleDevice ? "Create single device game" : "Create room"}
         </Button>
       </div>
     </div>
@@ -1511,12 +1603,15 @@ function LobbyScreen({
   onRoomSettingsChange,
   onRemovePlayer,
   onTransferHost,
+  onAddLocalPlayer,
 }) {
   const isHost = players.length > 0 && players[0].id === me.id;
+  const isSingleDevice = room.play_mode === "single_device";
   const cat = CONTENT.categories.find((c) => c.id === room.category);
   const latestPendingInvite = pendingInvites[0];
   const inviteUrl = inviteUrlFor(room.code, latestPendingInvite?.token);
   const [inviteeName, setInviteeName] = useState("");
+  const [localPlayerName, setLocalPlayerName] = useState("");
   const [adultSettingsConfirmed, setAdultSettingsConfirmed] = useState(false);
 
   return (
@@ -1524,14 +1619,17 @@ function LobbyScreen({
       <button onClick={onLeave} style={backBtn}>← Leave</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 28 }}>
         <div style={{ textAlign: "center" }}>
-          <div style={eyebrow}>ROOM CODE</div>
+          <div style={eyebrow}>{isSingleDevice ? "SINGLE DEVICE" : "ROOM CODE"}</div>
           <div style={{ fontSize: 56, fontWeight: 800, fontFamily: "'Sora', sans-serif", letterSpacing: "0.08em", color: cat?.accent }}>
-            {room.code}
+            {isSingleDevice ? "PASS" : room.code}
           </div>
           <p style={{ color: "#9C97AE", fontSize: 14, marginTop: 6, fontFamily: "'Manrope', sans-serif" }}>
-            Share this code so others can join
+            {isSingleDevice ? "Enter everyone here, then pass the phone each turn" : "Share this code so others can join"}
           </p>
-          <Pill text={online ? "Connected" : "Offline - reconnecting"} accent={online ? "#34D6B0" : "#FFB84D"} />
+          <Pill
+            text={isSingleDevice ? "On this device" : online ? "Connected" : "Offline - reconnecting"}
+            accent={isSingleDevice || online ? "#34D6B0" : "#FFB84D"}
+          />
         </div>
 
         <div>
@@ -1545,12 +1643,15 @@ function LobbyScreen({
                   {p.name} {p.id === me.id && <span style={{ color: "#9C97AE" }}>(you)</span>}
                 </span>
                 <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  {i === 0 && <span style={{ ...badge, background: cat?.accent }}>HOST</span>}
-                  {isHost && p.id !== me.id && (
+                  {i === 0 && <span style={{ ...badge, background: cat?.accent }}>{isSingleDevice ? "FIRST" : "HOST"}</span>}
+                  {isHost && !isSingleDevice && p.id !== me.id && (
                     <>
                       <button onClick={() => onTransferHost(p)} style={miniBtn}>Make host</button>
                       <button onClick={() => onRemovePlayer(p)} style={miniBtn}>Remove</button>
                     </>
+                  )}
+                  {isSingleDevice && players.length > 2 && p.id !== me.id && (
+                    <button onClick={() => onRemovePlayer(p)} style={miniBtn}>Remove</button>
                   )}
                 </span>
               </div>
@@ -1563,7 +1664,30 @@ function LobbyScreen({
           <Pill text={cat?.label} accent={cat?.accent} />
         </div>
 
-        {isHost && (
+        {isSingleDevice && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <TextField
+              value={localPlayerName}
+              onChange={setLocalPlayerName}
+              placeholder="Add player"
+              maxLength={20}
+              ariaLabel="Add player"
+            />
+            <button
+              type="button"
+              style={miniBtn}
+              disabled={!firstNameOnly(localPlayerName) || players.length >= MAX_PLAYERS}
+              onClick={() => {
+                onAddLocalPlayer(localPlayerName);
+                setLocalPlayerName("");
+              }}
+            >
+              Add
+            </button>
+          </div>
+        )}
+
+        {!isSingleDevice && isHost && (
           <TextField
             value={inviteeName}
             onChange={(value) => setInviteeName(firstNameOnly(value))}
@@ -1572,25 +1696,37 @@ function LobbyScreen({
             ariaLabel="Invitee name"
           />
         )}
-        <Button
-          variant="ghost"
-          disabled={isHost && !firstNameOnly(inviteeName)}
-          onClick={() => {
-            onInvite(inviteeName);
-            setInviteeName("");
-          }}
-        >
-          Create invite
-        </Button>
-        <div style={qrPanel}>
-          <img src={qrUrlFor(room.code, latestPendingInvite?.token)} alt={`QR invite for room ${room.code}`} style={qrImage} />
-          <div style={{ ...hintText, textAlign: "left" }}>
-            {latestPendingInvite ? "Latest pending invite:" : "Create an invite to generate a cancelable link:"}
-            <div style={linkText}>{inviteUrl}</div>
+        {!isSingleDevice && (
+          <>
+            <Button
+              variant="ghost"
+              disabled={isHost && !firstNameOnly(inviteeName)}
+              onClick={() => {
+                onInvite(inviteeName);
+                setInviteeName("");
+              }}
+            >
+              Create invite
+            </Button>
+            <div style={qrPanel}>
+              <img src={qrUrlFor(room.code, latestPendingInvite?.token)} alt={`QR invite for room ${room.code}`} style={qrImage} />
+              <div style={{ ...hintText, textAlign: "left" }}>
+                {latestPendingInvite ? "Latest pending invite:" : "Create an invite to generate a cancelable link:"}
+                <div style={linkText}>{inviteUrl}</div>
+              </div>
+            </div>
+          </>
+        )}
+        {isSingleDevice && (
+          <div style={invitePanel}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>HOW IT WORKS</div>
+            <div style={{ ...hintText, textAlign: "left" }}>
+              Keep the phone on the table, tap start, and pass it to the highlighted player. The game is saved on this device if the screen locks.
+            </div>
           </div>
-        </div>
+        )}
         {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
-        {isHost && (
+        {!isSingleDevice && isHost && (
           <div style={invitePanel}>
             <div style={{ ...eyebrow, marginBottom: 8 }}>PENDING INVITES</div>
             {!invitesSupported && (
@@ -1664,7 +1800,7 @@ function LobbyScreen({
             disabled={room.status !== "playing" && players.length < 2}
             onClick={room.status === "playing" ? onReturnToGame : onStart}
           >
-            {room.status === "playing" ? "Return to game" : players.length < 2 ? "Waiting for more players..." : "Start game"}
+            {room.status === "playing" || room.status === "paused" ? "Return to game" : players.length < 2 ? "Waiting for more players..." : "Start game"}
           </Button>
         ) : (
           <div style={{ textAlign: "center", color: "#9C97AE", fontSize: 14, fontFamily: "'Manrope', sans-serif" }}>
@@ -1687,6 +1823,8 @@ function GameScreen({
   onInvite,
   onEndGame,
   onBackToLobby,
+  onPauseGame,
+  onResumeGame,
   onSkipPlayer,
   onRemovePlayer,
   onShareRecap,
@@ -1694,9 +1832,11 @@ function GameScreen({
   busy,
 }) {
   const cat = CONTENT.categories.find((c) => c.id === room.category);
+  const isSingleDevice = room.play_mode === "single_device";
   const currentPlayer = players[room.current_player_index % players.length];
-  const isMyTurn = currentPlayer?.id === me.id;
+  const isMyTurn = isSingleDevice || currentPlayer?.id === me.id;
   const hasPrompt = !!room.current_prompt;
+  const isPaused = room.status === "paused";
   const isPenalty = room.current_type === "penalty";
   const isPenaltyLike = room.current_type === "penalty" || room.current_type === "consequence";
   const isHost = players.length > 0 && players[0].id === me.id;
@@ -1717,19 +1857,25 @@ function GameScreen({
     <div style={screenWrap}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 16 }}>
         <button onClick={onLeave} style={backBtn}>Leave</button>
-        <button onClick={onInvite} style={backBtn}>Invite</button>
+        {isSingleDevice ? (
+          <button onClick={onBackToLobby} style={backBtn}>Lobby</button>
+        ) : (
+          <button onClick={onInvite} style={backBtn}>Invite</button>
+        )}
       </div>
 
       <div style={{ textAlign: "center", marginTop: 0, marginBottom: 4 }}>
+        <Pill text={isSingleDevice ? "Single device" : "Multiplayer"} accent={isSingleDevice ? "#FFB84D" : "#34D6B0"} />
         <Pill text={room.game_mode === "questions" ? "Questions" : "Truth or Dare"} />
         <Pill text={cat?.label} accent={accent} style={{ marginLeft: 8 }} />
-        <Pill text={online ? "Connected" : "Offline - reconnecting"} accent={online ? "#34D6B0" : "#FFB84D"} style={{ marginLeft: 8 }} />
+        {!isSingleDevice && <Pill text={online ? "Connected" : "Offline - reconnecting"} accent={online ? "#34D6B0" : "#FFB84D"} style={{ marginLeft: 8 }} />}
+        {isPaused && <Pill text="Paused" accent="#FFB84D" style={{ marginLeft: 8 }} />}
       </div>
       {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 28 }}>
         <div style={{ textAlign: "center" }} aria-live="polite">
-          <div style={eyebrow}>{isMyTurn ? "YOUR TURN" : "CURRENT TURN"}</div>
+          <div style={eyebrow}>{isSingleDevice ? "PASS TO" : isMyTurn ? "YOUR TURN" : "CURRENT TURN"}</div>
           <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "'Sora', sans-serif", color: accent }}>
             {currentPlayer?.name}
           </div>
@@ -1799,7 +1945,7 @@ function GameScreen({
                 </div>
               ) : (
                 <div style={{ color: "#807C92", fontFamily: "'Manrope', sans-serif", fontSize: 15 }}>
-                  {isMyTurn ? "Pick truth or dare below" : "Waiting for their pick..."}
+                  {isPaused ? "Paused. Resume when everyone is ready." : isMyTurn ? "Pick truth or dare below" : "Waiting for their pick..."}
                 </div>
               )}
             </div>
@@ -1813,16 +1959,19 @@ function GameScreen({
             21+ only. Say no without penalty. Water, soda, or any non-alcoholic drink can replace shots.
           </div>
         )}
-        {isMyTurn && !hasPrompt && room.game_mode === "truth_dare" && (
+        {isPaused && (
+          <Button accent={accent} disabled={busy} onClick={onResumeGame}>Resume game</Button>
+        )}
+        {!isPaused && isMyTurn && !hasPrompt && room.game_mode === "truth_dare" && (
           <div style={{ display: "flex", gap: 12 }}>
             <Button accent="#34D6B0" disabled={busy} onClick={() => onAction("draw", "truth")}>Truth</Button>
             <Button accent="#FF5A4E" disabled={busy} onClick={() => onAction("draw", "dare")}>Dare</Button>
           </div>
         )}
-        {isMyTurn && !hasPrompt && room.game_mode === "questions" && (
+        {!isPaused && isMyTurn && !hasPrompt && room.game_mode === "questions" && (
           <Button accent={accent} disabled={busy} onClick={() => onAction("draw", "question")}>Draw a question</Button>
         )}
-        {isMyTurn && hasPrompt && (
+        {!isPaused && isMyTurn && hasPrompt && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {!isPenaltyLike && (
               <Button variant="outline" accent="#FFB84D" disabled={busy} onClick={() => onAction("penalty")}>
@@ -1832,7 +1981,7 @@ function GameScreen({
             <Button accent={accent} disabled={busy} onClick={() => onAction("next")}>Done - next player</Button>
           </div>
         )}
-        {!isMyTurn && (
+        {!isPaused && !isMyTurn && (
           <div style={{ textAlign: "center", color: "#807C92", fontSize: 13, fontFamily: "'Manrope', sans-serif" }}>
             {currentPlayer?.name} is up
           </div>
@@ -1845,9 +1994,10 @@ function GameScreen({
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="ghost" disabled={busy} onClick={onShareRecap}>Share recap</Button>
-              <Button variant="ghost" disabled={busy} onClick={onBackToLobby}>Lobby</Button>
+              <Button variant="ghost" disabled={busy} onClick={onPauseGame}>Pause</Button>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="ghost" disabled={busy} onClick={onBackToLobby}>Lobby</Button>
               <Button variant="outline" accent="#FF5A4E" disabled={busy} onClick={onEndGame}>End for everyone</Button>
             </div>
           </div>
@@ -2216,6 +2366,7 @@ const inviteRow = {
 
 export default function App() {
   const [view, setView] = useState("home"); // home | create | join | lobby | game
+  const [selectedPlayMode, setSelectedPlayMode] = useState("multiplayer");
   const [joinCode, setJoinCode] = useState(null);
   const [inviteToken, setInviteToken] = useState(null);
   const [roomCode, setRoomCode] = useState(null);
@@ -2231,6 +2382,7 @@ export default function App() {
   const [roundPenaltyCounts, setRoundPenaltyCounts] = useState({});
   const [pendingInvites, setPendingInvites] = useState([]);
   const [invitesSupported, setInvitesSupported] = useState(true);
+  const [hasSavedLocal, setHasSavedLocal] = useState(false);
 
   // Restore session on mount (handles phone lock / tab reload mid-game)
   useEffect(() => {
@@ -2251,6 +2403,7 @@ export default function App() {
           setMe(savedMe);
         }
       }
+      setHasSavedLocal(Boolean(localStorage.getItem(LOCAL_GAME_KEY)));
     } catch (e) {
       // sessionStorage unavailable - proceed without persistence
     }
@@ -2268,6 +2421,16 @@ export default function App() {
       }
     }
   }, [roomCode, me]);
+
+  useEffect(() => {
+    if (room?.play_mode !== "single_device" || !roomCode || !me) return;
+    try {
+      localStorage.setItem(LOCAL_GAME_KEY, JSON.stringify({ room, players, me, view }));
+      setHasSavedLocal(true);
+    } catch (e) {
+      // ignore storage errors
+    }
+  }, [room, players, me, roomCode, view]);
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event) {
@@ -2318,7 +2481,7 @@ export default function App() {
 
   // Subscribe to room + players once we have a roomCode
   useEffect(() => {
-    if (!roomCode || !supabase) return;
+    if (!roomCode || room?.play_mode === "single_device" || !supabase) return;
 
     let active = true;
 
@@ -2342,7 +2505,7 @@ export default function App() {
       }
       setRoom(r);
       setPlayers(p || []);
-      if (r?.status === "playing") setView("game");
+      if (r?.status === "playing" || r?.status === "paused") setView("game");
       else setView("lobby");
     }
     loadInitial();
@@ -2352,7 +2515,7 @@ export default function App() {
       .on("postgres_changes", { event: "*", schema: "public", table: "rooms", filter: `code=eq.${roomCode}` }, (payload) => {
         if (payload.eventType === "DELETE") return;
         setRoom(payload.new);
-        if (payload.new.status === "playing") setView("game");
+        if (payload.new.status === "playing" || payload.new.status === "paused") setView("game");
         else setView("lobby");
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "players", filter: `room_code=eq.${roomCode}` }, () => {
@@ -2372,7 +2535,7 @@ export default function App() {
   }, [roomCode]);
 
   useEffect(() => {
-    if (!roomCode || !supabase) {
+    if (!roomCode || room?.play_mode === "single_device" || !supabase) {
       setPendingInvites([]);
       return;
     }
@@ -2458,6 +2621,41 @@ export default function App() {
     setRoomCode(code);
   }
 
+  function handleLocalRoomCreated(localRoom, localPlayers, localMe) {
+    setSelectedPlayMode("single_device");
+    setMe(localMe);
+    setRoomCode(localRoom.code);
+    setRoom(localRoom);
+    setPlayers(localPlayers);
+    setPendingInvites([]);
+    setInviteStatus("");
+    setRoundPenaltyCounts({});
+    setActivityLog([]);
+    setView("lobby");
+  }
+
+  function handleResumeLocalGame() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LOCAL_GAME_KEY) || "");
+      if (!saved?.room || !saved?.players?.length || !saved?.me) {
+        setHasSavedLocal(false);
+        setInstallStatus("No saved single device game found.");
+        return;
+      }
+      setSelectedPlayMode("single_device");
+      setRoom(saved.room);
+      setPlayers(saved.players);
+      setMe(saved.me);
+      setRoomCode(saved.room.code);
+      setPendingInvites([]);
+      setInviteStatus("Single device game restored.");
+      setView(saved.room.status === "lobby" ? "lobby" : "game");
+    } catch (e) {
+      setHasSavedLocal(false);
+      setInstallStatus("No saved single device game found.");
+    }
+  }
+
   function handleJoined(code, player) {
     setMe(player);
     setRoomCode(code);
@@ -2466,6 +2664,17 @@ export default function App() {
 
   async function handleStart() {
     setRoundPenaltyCounts({});
+    if (room?.play_mode === "single_device") {
+      setRoom((current) => ({
+        ...current,
+        status: "playing",
+        current_player_index: 0,
+        current_prompt: null,
+        current_type: null,
+      }));
+      setView("game");
+      return;
+    }
     await supabase
       .from("rooms")
       .update({ status: "playing", current_player_index: 0, current_prompt: null, current_type: null })
@@ -2476,6 +2685,18 @@ export default function App() {
     if (actionInFlight) return;
     setActionInFlight(true);
     try {
+      if (room?.play_mode === "single_device") {
+        setRoom((current) => ({
+          ...current,
+          status: "lobby",
+          current_player_index: 0,
+          current_prompt: null,
+          current_type: null,
+        }));
+        setRoundPenaltyCounts({});
+        setView("lobby");
+        return;
+      }
       await supabase
         .from("rooms")
         .update({ status: "lobby", current_player_index: 0, current_prompt: null, current_type: null })
@@ -2494,8 +2715,46 @@ export default function App() {
     setView("game");
   }
 
+  async function handlePauseGame() {
+    if (actionInFlight || !room) return;
+    setActionInFlight(true);
+    try {
+      if (room.play_mode === "single_device") {
+        setRoom((current) => ({ ...current, status: "paused" }));
+        return;
+      }
+      await supabase.from("rooms").update({ status: "paused" }).eq("code", roomCode);
+    } finally {
+      setActionInFlight(false);
+    }
+  }
+
+  async function handleResumeGame() {
+    if (actionInFlight || !room) return;
+    setActionInFlight(true);
+    try {
+      if (room.play_mode === "single_device") {
+        setRoom((current) => ({ ...current, status: "playing" }));
+        return;
+      }
+      await supabase.from("rooms").update({ status: "playing" }).eq("code", roomCode);
+    } finally {
+      setActionInFlight(false);
+    }
+  }
+
   async function handleRoomSettingsChange(nextSettings) {
     if (!roomCode) return;
+    if (room?.play_mode === "single_device") {
+      setRoom((current) => ({
+        ...current,
+        ...nextSettings,
+        current_prompt: null,
+        current_type: null,
+        current_player_index: 0,
+      }));
+      return;
+    }
     await supabase
       .from("rooms")
       .update({ ...nextSettings, current_prompt: null, current_type: null, current_player_index: 0 })
@@ -2503,6 +2762,10 @@ export default function App() {
   }
 
   async function handleInvite(inviteeName = "") {
+    if (room?.play_mode === "single_device") {
+      setInviteStatus("Single device games stay on this phone. Add players in the lobby.");
+      return;
+    }
     if (!roomCode) return;
     let token = randomInviteToken();
     let label = firstNameOnly(inviteeName);
@@ -2579,6 +2842,26 @@ export default function App() {
     if (!player || actionInFlight) return;
     setActionInFlight(true);
     try {
+      if (room?.play_mode === "single_device") {
+        const nextPlayers = players.filter((item) => item.id !== player.id);
+        if (nextPlayers.length < 2) {
+          setInviteStatus("Keep at least 2 players in a single device game.");
+          return;
+        }
+        setPlayers(nextPlayers);
+        setRoom((current) => {
+          const currentIndex = current.current_player_index % players.length;
+          const removedIndex = players.findIndex((item) => item.id === player.id);
+          const nextIndex = removedIndex > -1 && removedIndex <= currentIndex ? Math.max(0, currentIndex - 1) : currentIndex;
+          return {
+            ...current,
+            current_player_index: nextIndex % nextPlayers.length,
+            current_prompt: null,
+            current_type: null,
+          };
+        });
+        return;
+      }
       await supabase.from("players").delete().eq("id", player.id);
       if (player.id === me?.id) {
         handleLocalExit();
@@ -2603,6 +2886,31 @@ export default function App() {
       setActionInFlight(false);
     }
   }
+
+  function handleAddLocalPlayer(playerName) {
+    if (room?.play_mode !== "single_device") return;
+    const name = firstNameOnly(playerName);
+    if (!name) return;
+    if (players.length >= MAX_PLAYERS) {
+      setInviteStatus(`Single device games support up to ${MAX_PLAYERS} players.`);
+      return;
+    }
+    if (players.some((player) => player.name.toLowerCase() === name.toLowerCase())) {
+      setInviteStatus("That name is already in the game.");
+      return;
+    }
+    setPlayers((items) => [
+      ...items,
+      {
+        id: localId("player"),
+        room_code: room.code,
+        name,
+        join_order: items.length,
+      },
+    ]);
+    setInviteStatus(`${name} added.`);
+  }
+
 
   async function handleTransferHost(player) {
     if (!player || actionInFlight) return;
@@ -2630,10 +2938,10 @@ export default function App() {
 
   async function handleShareRecap() {
     const lines = [
-      `Truth/Dare room ${roomCode} recap`,
+      `${room?.play_mode === "single_device" ? "Single device" : `Room ${roomCode}`} recap`,
       `Players: ${players.map((player) => player.name).join(", ") || "None"}`,
       score.length ? `Penalties: ${score.map((entry) => `${entry.name} ${entry.shots}`).join(", ")}` : "Penalties: none",
-      `Invite: ${inviteUrlFor(roomCode)}`,
+      room?.play_mode === "single_device" ? "Mode: pass-the-phone" : `Invite: ${inviteUrlFor(roomCode)}`,
     ];
     const text = lines.join("\n");
     try {
@@ -2667,6 +2975,60 @@ export default function App() {
     if (actionInFlight) return; // guard against rapid double-tap firing duplicate writes
     setActionInFlight(true);
     try {
+      if (room?.play_mode === "single_device") {
+        if (action === "draw") {
+          const prompt = room.game_mode === "questions" ? pickTruthOrDareForQuestions() : pickTruthOrDare(room, kind);
+          setRoom((current) => ({ ...current, current_prompt: encodePrompt(prompt), current_type: kind }));
+        } else if (action === "penalty") {
+          const activePlayer = players[room.current_player_index % players.length];
+          const playerId = activePlayer?.id || currentPlayerName();
+          const currentCount = roundPenaltyCounts[playerId] || 0;
+          const prompt = decodePrompt(room.current_prompt);
+          const shotCount = prompt?.penalty?.count || shotCountFromPenalty(penaltyTextFor(room.current_type)) || 1;
+          const isFourthPenalty = currentCount >= MAX_ROUND_SHOT_PENALTIES;
+          const rightSidePlayer = players[(room.current_player_index + 1) % players.length];
+          const penaltyPrompt = isFourthPenalty
+            ? {
+                text: `You have reached ${MAX_ROUND_SHOT_PENALTIES} penalties this round. ${rightSidePlayer?.name || "The player to your right"} now assigns a consent-safe consequence.`,
+                consequence: true,
+                rules: CONTENT.globalRules.penalty_tracking?.on_fourth_penalty?.rules || [],
+              }
+            : {
+                text: `${currentPlayerName()} takes ${shotCount} ${shotCount === 1 ? "shot" : "shots"}.`,
+                penalty: { type: "shots", count: shotCount },
+                warning: currentCount + 1 === 2 ? `${currentPlayerName()} has 2 penalties this round.` : null,
+              };
+          setRoom((current) => ({
+            ...current,
+            current_prompt: encodePrompt(penaltyPrompt),
+            current_type: isFourthPenalty ? "consequence" : "penalty",
+          }));
+          if (!isFourthPenalty) {
+            setRoundPenaltyCounts((counts) => ({ ...counts, [playerId]: currentCount + 1 }));
+          }
+          setActivityLog((entries) => [
+            {
+              type: isFourthPenalty ? "consequence" : "penalty",
+              player: currentPlayerName(),
+              shots: isFourthPenalty ? 0 : shotCount,
+              text: penaltyPrompt.text,
+              at: new Date().toISOString(),
+            },
+            ...entries,
+          ].slice(0, 30));
+        } else if (action === "next") {
+          const expectedIndex = room.current_player_index;
+          const nextIndex = (expectedIndex + 1) % players.length;
+          if (nextIndex === 0) setRoundPenaltyCounts({});
+          setRoom((current) => ({
+            ...current,
+            current_prompt: null,
+            current_type: null,
+            current_player_index: nextIndex,
+          }));
+        }
+        return;
+      }
       if (action === "draw") {
         // Only succeeds if the room is still in the state we expect (no prompt drawn yet).
         // Prevents a double-tap from drawing two prompts in a row.
@@ -2748,6 +3110,7 @@ export default function App() {
     setInviteToken(null);
     setPendingInvites([]);
     setInviteStatus("");
+    setHasSavedLocal(Boolean(localStorage.getItem(LOCAL_GAME_KEY)));
     try {
       localStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem(SESSION_KEY);
@@ -2757,6 +3120,12 @@ export default function App() {
   }
 
   async function handleLeave() {
+    if (room?.play_mode === "single_device") {
+      setView("home");
+      setInviteStatus("");
+      setHasSavedLocal(true);
+      return;
+    }
     const player = me;
     if (player?.id && supabase) {
       await handleRemovePlayer(player);
@@ -2765,15 +3134,22 @@ export default function App() {
     handleLocalExit();
   }
 
-  if (!hasSupabaseConfig) {
-    return <ConfigScreen />;
-  }
-
   if (view === "home") {
     return (
       <HomeScreen
-        onCreate={() => setView("create")}
+        onCreate={(playMode) => {
+          if (playMode === "multiplayer" && !hasSupabaseConfig) {
+            setInstallStatus("Multiplayer needs Supabase config. Single device works on this phone.");
+            return;
+          }
+          setSelectedPlayMode(playMode);
+          setView("create");
+        }}
         onJoin={(code) => {
+          if (!hasSupabaseConfig) {
+            setInstallStatus("Joining rooms needs Supabase config. Single device works on this phone.");
+            return;
+          }
           setJoinCode(code);
           setInviteToken(null);
           setView("join");
@@ -2781,12 +3157,25 @@ export default function App() {
         onInstall={handleInstall}
         installStatus={installStatus}
         canInstall={Boolean(installPrompt)}
+        hasSavedLocal={hasSavedLocal}
+        onResumeLocal={handleResumeLocalGame}
       />
     );
   }
 
   if (view === "create") {
-    return <CreateRoomScreen onRoomCreated={handleRoomCreated} onBack={() => setView("home")} />;
+    return (
+      <CreateRoomScreen
+        playMode={selectedPlayMode}
+        onRoomCreated={handleRoomCreated}
+        onLocalRoomCreated={handleLocalRoomCreated}
+        onBack={() => setView("home")}
+      />
+    );
+  }
+
+  if (!hasSupabaseConfig && selectedPlayMode !== "single_device") {
+    return <ConfigScreen />;
   }
 
   if (view === "join") {
@@ -2812,6 +3201,7 @@ export default function App() {
         onRoomSettingsChange={handleRoomSettingsChange}
         onRemovePlayer={handleRemovePlayer}
         onTransferHost={handleTransferHost}
+        onAddLocalPlayer={handleAddLocalPlayer}
       />
     );
   }
@@ -2829,6 +3219,8 @@ export default function App() {
         onInvite={handleInvite}
         onEndGame={handleEndGame}
         onBackToLobby={handleBackToLobby}
+        onPauseGame={handlePauseGame}
+        onResumeGame={handleResumeGame}
         onSkipPlayer={handleSkipPlayer}
         onRemovePlayer={handleRemovePlayer}
         onShareRecap={handleShareRecap}
