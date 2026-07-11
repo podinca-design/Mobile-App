@@ -1147,12 +1147,19 @@ function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall, ha
   return (
     <div style={screenWrap}>
       <div style={ambientStage}>
-        <div style={heroCardBack} />
-        <div style={heroCardMid} />
-        <div style={heroCardFront}>
+        <img src="/afterparty-thumbnail.png" alt="" aria-hidden="true" style={heroPhoto} />
+        <div style={heroPhotoShade} />
+        <div style={heroGlassCard}>
           <div style={heroCardMark}>?</div>
-          <div style={heroCardRule}>TRUTH</div>
-          <div style={heroCardRuleAlt}>DARE</div>
+          <div>
+            <div style={heroCardRule}>TRUTH</div>
+            <div style={heroCardRuleAlt}>DARE</div>
+          </div>
+        </div>
+        <div style={heroAgeBadge}>21+</div>
+        <div style={heroPhotoCaption}>
+          <div style={eyebrow}>PRIVATE PARTY GAME</div>
+          <div style={heroPhotoTitle}>Play after dark</div>
         </div>
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: 24 }}>
@@ -2177,13 +2184,79 @@ const heroCopy = {
 
 const ambientStage = {
   position: "relative",
-  height: 250,
-  margin: "18px 0 28px",
+  height: 310,
+  margin: "8px 0 24px",
   borderRadius: 24,
   overflow: "hidden",
-  background: "linear-gradient(150deg, rgba(52,214,176,0.16), rgba(255,90,78,0.18) 48%, rgba(255,184,77,0.14))",
-  border: "1px solid rgba(255,255,255,0.12)",
-  boxShadow: "0 24px 70px rgba(0,0,0,0.42)",
+  background: "#08070B",
+  border: "1px solid rgba(255,255,255,0.14)",
+  boxShadow: "0 28px 80px rgba(0,0,0,0.52)",
+};
+
+const heroPhoto = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  objectPosition: "center center",
+  transform: "scale(1.02)",
+};
+
+const heroPhotoShade = {
+  position: "absolute",
+  inset: 0,
+  background: "linear-gradient(180deg, rgba(7,7,11,0.08) 0%, rgba(7,7,11,0.18) 42%, rgba(7,7,11,0.86) 100%)",
+};
+
+const heroGlassCard = {
+  position: "absolute",
+  right: 18,
+  top: 18,
+  width: 116,
+  height: 156,
+  borderRadius: 20,
+  border: "1px solid rgba(255,255,255,0.24)",
+  background: "linear-gradient(160deg, rgba(8,7,11,0.78), rgba(255,90,78,0.22))",
+  backdropFilter: "blur(8px)",
+  boxShadow: "0 22px 55px rgba(0,0,0,0.46)",
+  color: "#F8F3E8",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  padding: 15,
+  boxSizing: "border-box",
+};
+
+const heroAgeBadge = {
+  position: "absolute",
+  left: 18,
+  top: 18,
+  borderRadius: 999,
+  padding: "7px 12px",
+  background: "rgba(8,7,11,0.72)",
+  border: "1px solid rgba(255,255,255,0.22)",
+  color: "#FFB84D",
+  fontFamily: "'Manrope', sans-serif",
+  fontSize: 12,
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+};
+
+const heroPhotoCaption = {
+  position: "absolute",
+  left: 18,
+  right: 18,
+  bottom: 18,
+};
+
+const heroPhotoTitle = {
+  color: "#F8F3E8",
+  fontFamily: "'Sora', sans-serif",
+  fontSize: 27,
+  fontWeight: 800,
+  letterSpacing: 0,
+  textShadow: "0 12px 28px rgba(0,0,0,0.62)",
 };
 
 const heroCardBase = {
@@ -2226,7 +2299,7 @@ const heroCardFront = {
 
 const heroCardMark = {
   fontFamily: "'Sora', sans-serif",
-  fontSize: 58,
+  fontSize: 48,
   fontWeight: 800,
   lineHeight: 1,
 };
@@ -2241,7 +2314,7 @@ const heroCardRule = {
 const heroCardRuleAlt = {
   ...heroCardRule,
   alignSelf: "flex-end",
-  color: "#B33A33",
+  color: "#FF5A4E",
 };
 
 const sectionTitle = {
