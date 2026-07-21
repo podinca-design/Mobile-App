@@ -1,0 +1,12 @@
+.env*
+!.env.example
+.vercel
+.next
+node_modules
+tsconfig.tsbuildinfo
+*.log
+*.pid
+qa-artifacts
+qa-artifacts*.png
+TOUCHPOINT_SOCIAL_CAMPAIGN_REVIEW_PACKAGE
+*.local
