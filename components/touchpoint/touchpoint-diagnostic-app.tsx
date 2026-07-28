@@ -43,6 +43,41 @@ type Snapshot = {
   topCategories: Array<{ label: string; value: number }>;
 };
 
+type CspCoverage = {
+  coverageId: string;
+  insured: string;
+  type: string;
+  carrier: string;
+  status: string;
+  faceAmount: number;
+  monthlyPremium: number;
+  cashValue: number;
+  policyNumber: string;
+  issueDate: string;
+  annualPremium: number;
+  productDetails: string;
+  ridersSummary: string;
+  sourceDocument: string;
+  verificationStatus: string;
+  sourceConfidence: string;
+  notes: string;
+};
+
+type CspReviewBaseline = {
+  sessionId: string;
+  household: string;
+  snapshotId: string;
+  monthlyIncome: number;
+  expenseCategories: Record<string, number>;
+  assets: Record<string, number>;
+  liabilities: Record<string, number>;
+  goals: Record<string, string | number>;
+  protectionNotes: string;
+  coverage: CspCoverage[];
+  baselineState: string;
+  advisorSummary: string;
+};
+
 type PdfDoc = {
   addImage: (imageData: string, format: string, x: number, y: number, width: number, height: number) => void;
   setFont: (fontName: string, fontStyle?: string) => void;
@@ -846,6 +881,11 @@ function CspTool({ brand, sessionId }: { brand: BrandConfig; sessionId: string }
   const [leadOpen, setLeadOpen] = useState(false);
   const [savedLead, setSavedLead] = useState<{ leadId: string; calendlyUrl: string } | null>(null);
   const [readyForCapture, setReadyForCapture] = useState(false);
+  const [reviewBaseline, setReviewBaseline] = useState<CspReviewBaseline | null>(null);
+  const [reviewCoverage, setReviewCoverage] = useState<CspCoverage[]>([]);
+  const [reviewToken, setReviewToken] = useState("");
+  const [reviewState, setReviewState] = useState<"idle" | "loading" | "loaded" | "saving" | "saved" | "error">("idle");
+  const [reviewMessage, setReviewMessage] = useState("");
   const optionalRef = useRef<HTMLElement | null>(null);
   const summaryRef = useRef<HTMLElement | null>(null);
   const finalRef = useRef<HTMLElement | null>(null);
@@ -869,6 +909,47 @@ function CspTool({ brand, sessionId }: { brand: BrandConfig; sessionId: string }
     valuesTrackedRef.current = true;
     track("csp_values_entered", sessionId, "csp");
   }, [expenses, sessionId, snapshot.monthlyIncome]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const session = params.get("review") || "";
+    const token = params.get("token") || "";
+    if (!session || !token) return;
+    let active = true;
+    setReviewState("loading");
+    fetch(`/api/touchpoint/client-csp-review?session=${encodeURIComponent(session)}&token=${encodeURIComponent(token)}`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((result) => {
+        if (!active) return;
+        if (!result?.ok || !result.review) throw new Error(result?.message || "Review link unavailable.");
+        const baseline = result.review as CspReviewBaseline;
+        const assets = baseline.assets || {};
+        const liabilities = baseline.liabilities || {};
+        const goals = baseline.goals || {};
+        setReviewBaseline(baseline);
+        setReviewCoverage(baseline.coverage || []);
+        setReviewToken(token);
+        setIncome(String(baseline.monthlyIncome || ""));
+        setFrequency("monthly");
+        setExpenses((current) => current.map((item) => ({ ...item, value: Number(baseline.expenseCategories?.[item.id] || 0), frequency: "monthly" })));
+        setOptionalProfile({
+          Assets: Object.fromEntries(Object.entries(assets).map(([key, value]) => [key, String(value)])),
+          Liabilities: Object.fromEntries(Object.entries(liabilities).map(([key, value]) => [key, String(value)])),
+          Goals: Object.fromEntries(Object.entries(goals).map(([key, value]) => [key, String(value)])),
+          "Protection notes": { insurance_review_notes: baseline.protectionNotes || "" }
+        });
+        setEnabledSections({ Assets: Object.keys(assets).length > 0, Liabilities: Object.keys(liabilities).length > 0, Goals: Object.keys(goals).length > 0, "Protection notes": Boolean(baseline.protectionNotes) });
+        setShowFull(true);
+        setReviewState("loaded");
+        setReviewMessage("Historical baseline loaded. Confirm and update every value with the client before saving this review.");
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setReviewState("error");
+        setReviewMessage(error instanceof Error ? error.message : "Unable to load review.");
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (showFull) {
@@ -913,6 +994,19 @@ function CspTool({ brand, sessionId }: { brand: BrandConfig; sessionId: string }
     window.setTimeout(() => optionalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
   }
 
+  function updateReviewCoverage(index: number, field: keyof CspCoverage, value: string) {
+    const numericFields: Array<keyof CspCoverage> = ["faceAmount", "monthlyPremium", "cashValue", "annualPremium"];
+    setReviewCoverage((current) => {
+      const next = current.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: numericFields.includes(field) ? parseMoney(value) : value } : item);
+      if (field === "monthlyPremium") {
+        const premiumTotal = next.reduce((sum, item) => sum + Number(item.monthlyPremium || 0), 0);
+        setExpenses((currentExpenses) => currentExpenses.map((item) => item.id === "life_insurance" ? { ...item, value: premiumTotal, frequency: "monthly" } : item));
+      }
+      setReadyForCapture(false);
+      return next;
+    });
+  }
+
   function focusOptionalSection(section: CspSectionKey) {
     setShowFull(true);
     setEnabledSections((current) => ({ ...current, [section]: true }));
@@ -929,6 +1023,42 @@ function CspTool({ brand, sessionId }: { brand: BrandConfig; sessionId: string }
     setShowFull(false);
     setActiveOptionalSection(null);
     setReadyForCapture(false);
+  }
+
+  async function saveAdvisorReview() {
+    if (!reviewBaseline || !reviewToken) return;
+    setReviewState("saving");
+    setReviewMessage("Saving the reviewed snapshot to the client review history.");
+    try {
+      const response = await fetch("/api/touchpoint/client-csp-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session: reviewBaseline.sessionId,
+          token: reviewToken,
+          snapshot: {
+            monthlyIncome: snapshot.monthlyIncome,
+            monthlyExpenses: snapshot.monthlyExpenses,
+            goppi: snapshot.goppi,
+            goppiRatio: snapshot.ratio,
+            goppiScore: snapshot.score,
+            expenseCategories: Object.fromEntries(expenses.map((item) => [item.id, item.value])),
+            assets: optionalProfile.Assets,
+            liabilities: optionalProfile.Liabilities,
+            goals: optionalProfile.Goals,
+            protectionNotes: optionalProfile["Protection notes"].insurance_review_notes || "",
+            coverage: reviewCoverage
+          }
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.ok) throw new Error(result?.message || "Unable to save review.");
+      setReviewState("saved");
+      setReviewMessage("Reviewed values saved to the client CSP review history.");
+    } catch (error) {
+      setReviewState("error");
+      setReviewMessage(error instanceof Error ? error.message : "Unable to save review.");
+    }
   }
 
   const payload = {
@@ -953,6 +1083,66 @@ function CspTool({ brand, sessionId }: { brand: BrandConfig; sessionId: string }
   return (
     <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
       <section className="rounded-[1.5rem] border border-white/10 bg-[#0a2029] p-4 sm:p-6">
+        {reviewState !== "idle" ? (
+          <div className="mb-5 rounded-2xl border border-cyan-200/30 bg-cyan-200/10 p-4">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-cyan-100">Advisor Review Mode{reviewBaseline ? ` - ${reviewBaseline.household}` : ""}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{reviewState === "loading" ? "Loading saved CSP baseline..." : reviewMessage}</p>
+          </div>
+        ) : null}
+        {reviewBaseline && reviewCoverage.length ? (
+          <div className="mb-5 rounded-2xl border border-emerald-200/30 bg-emerald-200/10 p-4">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-emerald-100">Coverage In Force - Review With Client</p>
+            <div className="mt-3 grid gap-3">
+              {reviewCoverage.map((coverage, coverageIndex) => (
+                <div className="rounded-xl border border-white/10 bg-[#06151d]/70 p-3" key={`${coverage.insured}-${coverage.carrier}`}>
+                  <p className="font-extrabold text-white">{coverage.insured}: {coverage.carrier}</p>
+                  <p className="mt-1 text-sm text-slate-200">{coverage.type} - {coverage.status}</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1 text-xs font-bold text-slate-200">Policy number
+                      <input className="min-h-11 rounded-xl border border-white/15 bg-[#0a2029] px-3 text-sm text-white" onChange={(event) => updateReviewCoverage(coverageIndex, "policyNumber", event.target.value)} value={coverage.policyNumber || ""} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200">Issue date
+                      <input className="min-h-11 rounded-xl border border-white/15 bg-[#0a2029] px-3 text-sm text-white" onChange={(event) => updateReviewCoverage(coverageIndex, "issueDate", event.target.value)} type="date" value={coverage.issueDate || ""} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200">Death benefit
+                      <MoneyInput ariaLabel={`${coverage.insured} death benefit`} value={coverage.faceAmount ? formatNumber(coverage.faceAmount) : ""} onChange={(value) => updateReviewCoverage(coverageIndex, "faceAmount", value)} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200">Monthly premium
+                      <MoneyInput ariaLabel={`${coverage.insured} monthly premium`} value={coverage.monthlyPremium ? formatNumber(coverage.monthlyPremium) : ""} onChange={(value) => updateReviewCoverage(coverageIndex, "monthlyPremium", value)} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200">Annual planned premium
+                      <MoneyInput ariaLabel={`${coverage.insured} annual premium`} value={coverage.annualPremium ? formatNumber(coverage.annualPremium) : ""} onChange={(value) => updateReviewCoverage(coverageIndex, "annualPremium", value)} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200">Cash value
+                      <MoneyInput ariaLabel={`${coverage.insured} cash value`} value={coverage.cashValue ? formatNumber(coverage.cashValue) : ""} onChange={(value) => updateReviewCoverage(coverageIndex, "cashValue", value)} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200 sm:col-span-2">Coverage status
+                      <select className="min-h-11 rounded-xl border border-white/15 bg-[#0a2029] px-3 text-sm text-white" onChange={(event) => updateReviewCoverage(coverageIndex, "status", event.target.value)} value={coverage.status || "Unknown - verify"}>
+                        <option>Current TouchPoint policy - issued policy reviewed</option>
+                        <option>Current TouchPoint policy - annual statement verified</option>
+                        <option>Current TouchPoint policy - advisor confirmed; verify carrier record</option>
+                        <option>Current TouchPoint policy - confirm current values</option>
+                        <option>Unknown - verify</option>
+                        <option>Lapsed / replaced</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200 sm:col-span-2">Product details
+                      <textarea className="min-h-20 rounded-xl border border-white/15 bg-[#0a2029] p-3 text-sm leading-5 text-white" onChange={(event) => updateReviewCoverage(coverageIndex, "productDetails", event.target.value)} value={coverage.productDetails || ""} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200 sm:col-span-2">Riders and living benefits
+                      <textarea className="min-h-20 rounded-xl border border-white/15 bg-[#0a2029] p-3 text-sm leading-5 text-white" onChange={(event) => updateReviewCoverage(coverageIndex, "ridersSummary", event.target.value)} value={coverage.ridersSummary || ""} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-slate-200 sm:col-span-2">Verification notes
+                      <textarea className="min-h-20 rounded-xl border border-white/15 bg-[#0a2029] p-3 text-sm leading-5 text-white" onChange={(event) => updateReviewCoverage(coverageIndex, "notes", event.target.value)} value={coverage.notes || ""} />
+                    </label>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-400">Source: {coverage.sourceDocument || "Manual record"}. Confidence: {coverage.sourceConfidence || coverage.verificationStatus || "Verify with carrier"}.</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-300">The CSP life-insurance expense updates automatically when a monthly policy premium changes. Save the reviewed CSP snapshot to write confirmed policy details back to the CRM coverage record and review history.</p>
+          </div>
+        ) : null}
         <p className="tp-copy text-base leading-7 text-slate-200 sm:text-lg sm:leading-8">
           Start with income, add recurring expenses, and immediately see what remains as <InlineTermHelp term="goppi" />. Values normalize to a monthly lens so the snapshot stays easy to compare and easy to explain.
         </p>
@@ -1019,6 +1209,11 @@ function CspTool({ brand, sessionId }: { brand: BrandConfig; sessionId: string }
           <button className="min-h-14 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-lg font-extrabold text-[#051016]" onClick={calculateAndShowSummary} type="button">
             Calculate GOPPI™ snapshot
           </button>
+          {reviewBaseline ? (
+            <button className="min-h-14 rounded-full border border-cyan-200/50 bg-cyan-200/10 px-5 py-3 text-lg font-extrabold text-cyan-50 disabled:opacity-60" disabled={reviewState === "saving"} onClick={() => void saveAdvisorReview()} type="button">
+              {reviewState === "saving" ? "Saving reviewed values..." : reviewState === "saved" ? "Reviewed values saved" : "Save reviewed CSP snapshot"}
+            </button>
+          ) : null}
           <button className="min-h-14 rounded-full border border-emerald-200/40 bg-emerald-200/10 px-5 py-3 text-lg font-extrabold text-emerald-50" onClick={() => {
             setShowFull(true);
             window.setTimeout(() => optionalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);

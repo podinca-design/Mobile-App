@@ -49,7 +49,12 @@ export default function WorkshopSurveyPage() {
       utm_medium: params.get("utm_medium") || "",
       utm_campaign: params.get("utm_campaign") || "",
       utm_content: params.get("utm_content") || "",
-      utm_term: params.get("utm_term") || ""
+      utm_term: params.get("utm_term") || "",
+      campaign_id: params.get("campaign_id") || "TP-WORKSHOP-FINANCIAL-LITERACY",
+      qr_id: params.get("qr_id") || "TP-WORKSHOP-DECK-QR",
+      workshop_name: params.get("workshop_name") || "Financial Literacy Workshop",
+      presenter: params.get("presenter") || "",
+      event_date: params.get("event_date") || ""
     };
   }, []);
 
@@ -75,7 +80,9 @@ export default function WorkshopSurveyPage() {
         preferred_contact_method: String(form.get("preferred_contact_method") || ""),
         preferred_contact_time: String(form.get("preferred_contact_time") || ""),
         preferred_follow_up_window: String(form.get("preferred_follow_up_window") || ""),
-        consent_primary: form.get("consent_primary") === "on"
+        consent_primary: form.get("consent_primary") === "on",
+        consent_email: form.get("consent_email") === "on",
+        consent_sms: form.get("consent_sms") === "on"
       },
       workshop: {
         primary_topic: String(form.get("primary_topic") || ""),
@@ -229,6 +236,14 @@ export default function WorkshopSurveyPage() {
                     <label className="flex items-start gap-3 rounded-md border border-[#bfd0da] bg-white/86 px-3 py-3 text-sm leading-6 text-[#34465b]">
                       <input required name="consent_primary" type="checkbox" className="mt-1 h-4 w-4 accent-[#0d7d75]" />
                       I agree that TouchPoint Group may contact me about my workshop response and individual review.
+                    </label>
+                    <label className="flex items-start gap-3 rounded-md border border-[#bfd0da] bg-white/86 px-3 py-3 text-sm leading-6 text-[#34465b]">
+                      <input name="consent_email" type="checkbox" className="mt-1 h-4 w-4 accent-[#0d7d75]" />
+                      I agree to receive follow-up by email about this workshop response and requested review.
+                    </label>
+                    <label className="flex items-start gap-3 rounded-md border border-[#bfd0da] bg-white/86 px-3 py-3 text-sm leading-6 text-[#34465b]">
+                      <input name="consent_sms" type="checkbox" className="mt-1 h-4 w-4 accent-[#0d7d75]" />
+                      I agree to receive text messages about this workshop response and requested review. Message and data rates may apply. Reply STOP to opt out.
                     </label>
                   </fieldset>
 

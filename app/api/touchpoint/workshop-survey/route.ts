@@ -14,6 +14,8 @@ type WorkshopSurveyPayload = {
     preferred_contact_time?: string;
     preferred_follow_up_window?: string;
     consent_primary?: boolean;
+    consent_email?: boolean;
+    consent_sms?: boolean;
   };
   workshop?: {
     primary_topic?: string;
@@ -89,6 +91,13 @@ export async function POST(request: Request) {
         segment: "Workshop Pain Point Triage",
         cta: "Prepare individual review meeting",
         submitted_at: now,
+        campaign_id: clean((body.meta || {}).campaign_id) || "TP-WORKSHOP-FINANCIAL-LITERACY",
+        qr_id: clean((body.meta || {}).qr_id) || "TP-WORKSHOP-DECK-QR",
+        workshop_name: clean((body.meta || {}).workshop_name) || "Financial Literacy Workshop",
+        presenter: clean((body.meta || {}).presenter),
+        event_date: clean((body.meta || {}).event_date),
+        consent_source: "workshop_survey",
+        consent_timestamp: now,
         primary_topic: clean(workshop.primary_topic),
         topic_reason: clean(workshop.topic_reason),
         follow_up_focus: focus.join(" | "),
