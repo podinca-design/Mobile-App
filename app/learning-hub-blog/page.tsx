@@ -20,12 +20,12 @@ export const metadata: Metadata = {
     "TOPPI"
   ],
   alternates: {
-    canonical: "/learning-hub-blog/"
+    canonical: "/learning-hub-blog"
   },
   openGraph: {
     title: "TouchPoint Learning Hub Blogs",
     description: "Educational articles on child future planning, conscious spending, life protection, retirement exposure, and financial decision-making.",
-    url: "https://touchpointgroup.co/learning-hub-blog/",
+    url: "https://touchpointgroup.co/learning-hub-blog",
     siteName: "TouchPoint",
     type: "website",
     images: ["/learning-hub/black-couple-finance-review.jpg"]

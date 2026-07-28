@@ -1,7 +1,11 @@
-export const metadata = {
+import { createPageMetadata } from "@/lib/seo";
+
+export const metadata = createPageMetadata({
   title: "Trust Design Intake | TouchPoint Group",
-  description: "Complete the TouchPoint Group trust design intake before your planning meeting."
-};
+  description: "Complete the TouchPoint Group trust design intake before your planning meeting.",
+  path: "/trust-intake",
+  index: false
+});
 
 export default function TrustIntakePage() {
   return (

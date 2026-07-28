@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { organizationStructuredData } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,9 +26,6 @@ export const metadata: Metadata = {
   creator: "TouchPoint",
   publisher: "TouchPoint",
   category: "financial planning",
-  alternates: {
-    canonical: "/"
-  },
   openGraph: {
     title: "TouchPoint Conscious Spending Tool",
     description: "Free planning tools to identify financial concerns, build a GOPPI snapshot, and choose a clearer next step.",
@@ -71,7 +69,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationStructuredData) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

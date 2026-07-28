@@ -1,12 +1,14 @@
 import { TouchPointDiagnosticApp } from "@/components/touchpoint/touchpoint-diagnostic-app";
+import { createPageMetadata } from "@/lib/seo";
 import { touchPointBrand } from "@/lib/touchpoint-brand";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "TouchPoint Risk Exposure Check",
-  description: "Open the 60-second TouchPoint risk exposure check directly."
-};
+export const metadata = createPageMetadata({
+  title: "Income Protection Risk Check",
+  description: "Use a free risk check to identify income, debt, family, and life-insurance protection gaps that may deserve attention.",
+  path: "/income-protection"
+});
 
 export default function RiskExposurePage() {
   return <TouchPointDiagnosticApp brand={touchPointBrand} initialPath="protection" initialStage="tool" />;

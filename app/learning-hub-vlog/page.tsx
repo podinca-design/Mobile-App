@@ -18,12 +18,12 @@ export const metadata: Metadata = {
     "life insurance education videos"
   ],
   alternates: {
-    canonical: "/learning-hub-vlog/"
+    canonical: "/learning-hub-vlog"
   },
   openGraph: {
     title: "TouchPoint Learning Hub Videos",
     description: "Educational videos for personal finance, child future planning, budgeting, IUL, GOPPI, TOPPI, and family protection conversations.",
-    url: "https://touchpointgroup.co/learning-hub-vlog/",
+    url: "https://touchpointgroup.co/learning-hub-vlog",
     siteName: "TouchPoint",
     type: "website",
     images: ["/learning-hub/thumbs/vlog-personal-finance-basics.jpg"]
