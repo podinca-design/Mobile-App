@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -7,18 +8,22 @@ const DEFAULT_APPS_SCRIPT_URL =
 
 const LEAD_ALERT_TO = "admin@touchpointgroup.co";
 const LEAD_ALERT_CC = "nikkic@alum.mit.edu";
-const QA_EMAILS = new Set(["nikkic@alum.mit.edu", "podinca@gmail.com"]);
+const QA_RULE_VERSION = "tp-qa-hmac-v1";
 
 export async function GET() {
   return NextResponse.json({ ok: true, service: "touchpoint-diagnostic-capture" });
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json().catch(() => null);
+  const rawBody = await request.text();
+  const payload = parsePayload(rawBody);
 
   if (!payload || typeof payload !== "object") {
     return NextResponse.json({ ok: false, message: "Invalid payload" }, { status: 400 });
   }
+  delete payload.qa_auth;
+  const qaAuthorization = authorizeQaRequest(request, payload);
+  if (qaAuthorization) payload.qa_auth = qaAuthorization;
 
   const endpoint = process.env.TOUCHPOINT_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
 
@@ -42,12 +47,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, status: response.status, data }, { status: 502 });
     }
 
-    await sendLeadNotification(payload, data);
+    await sendLeadNotification(payload, data, Boolean(qaAuthorization));
 
     const resultRecord = asRecord(data);
     return NextResponse.json({
       ok: true,
       data,
+      recordClass: qaAuthorization ? "qa" : "production",
       leadId: cleanText(resultRecord.leadId) || cleanText(resultRecord.lead_id) || cleanText(resultRecord.submission_id),
       calendlyUrl: cleanText(resultRecord.calendlyUrl) || cleanText(resultRecord.calendly_url)
     });
@@ -57,8 +63,8 @@ export async function POST(request: Request) {
   }
 }
 
-async function sendLeadNotification(payload: Record<string, unknown>, captureResult: unknown) {
-  if (!isLeadSubmission(payload) || isQaLead(payload)) return;
+async function sendLeadNotification(payload: Record<string, unknown>, captureResult: unknown, authorizedQa: boolean) {
+  if (!isLeadSubmission(payload) || authorizedQa) return;
 
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) return;
@@ -124,17 +130,43 @@ function isLeadSubmission(payload: Record<string, unknown>) {
   return eventName === "lead_submitted" || eventName === "business_continuity_review_submitted";
 }
 
-function isQaLead(payload: Record<string, unknown>) {
-  const lead = asRecord(payload.lead);
-  const values = [
-    cleanText(lead.name),
-    cleanText(lead.email),
-    cleanText(lead.phone),
-    cleanText(payload.sessionId)
-  ].map((value) => value.toLowerCase());
-  const email = cleanText(lead.email).toLowerCase();
-  if (QA_EMAILS.has(email)) return true;
-  return values.some((value) => /\b(qa|test|codex|sample|demo|dummy)\b/.test(value));
+function authorizeQaRequest(request: Request, payload: Record<string, unknown>) {
+  const secret = process.env.TOUCHPOINT_QA_SHARED_SECRET;
+  if (!secret) return null;
+  const timestamp = cleanText(request.headers.get("x-touchpoint-qa-timestamp"));
+  const testRunId = cleanText(request.headers.get("x-touchpoint-qa-run-id"));
+  const correlationId = cleanText(request.headers.get("x-touchpoint-qa-correlation-id"));
+  const signature = cleanText(request.headers.get("x-touchpoint-qa-signature")).toLowerCase();
+  const receivedAt = Date.parse(timestamp);
+  if (!timestamp || !testRunId || !correlationId || !signature || !Number.isFinite(receivedAt)) return null;
+  if (Math.abs(Date.now() - receivedAt) > 10 * 60 * 1000) return null;
+  const payloadHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+  const message = [timestamp, testRunId, correlationId, payloadHash].join("\n");
+  const expected = createHmac("sha256", secret).update(message).digest("hex");
+  if (!safeEqual(signature, expected)) return null;
+  return {
+    timestamp,
+    test_run_id: testRunId,
+    correlation_id: correlationId,
+    payload_hash: payloadHash,
+    signature,
+    authorization_method: "hmac-sha256",
+    classification_rule_version: QA_RULE_VERSION
+  };
+}
+
+function safeEqual(left: string, right: string) {
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(Buffer.from(left), Buffer.from(right));
+}
+
+function parsePayload(rawBody: string): Record<string, unknown> | null {
+  try {
+    const value = JSON.parse(rawBody);
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
