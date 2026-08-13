@@ -1,5 +1,13 @@
-const CACHE_NAME = "truth-dare-party-v2";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/afterparty-icon-v2-192.png", "/afterparty-icon-v2-512.png", "/afterparty-thumbnail.png"];
+const CACHE_NAME = "truth-dare-party-v3";
+const APP_SHELL = [
+  "/",
+  "/manifest.webmanifest",
+  "/afterparty-icon-v2-192.png",
+  "/afterparty-icon-v2-512.png",
+  "/afterparty-thumbnail.png",
+  "/ui-refresh.css?v=1.1.3",
+  "/ui-refresh.js?v=1.1.3"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
