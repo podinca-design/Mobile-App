@@ -1,0 +1,19 @@
+{
+  "app": "Afterparty",
+  "version": "1.1.2",
+  "androidVersionCode": 4,
+  "releaseLine": "firetv-flow-correction",
+  "requiredSetupFlow": [
+    "game",
+    "play_format",
+    "display_mode",
+    "settings",
+    "players",
+    "teams_or_pairs_if_applicable",
+    "review",
+    "lobby",
+    "gameplay"
+  ],
+  "tvPlayerEntry": "explicit_add_player_no_autofocus",
+  "fireTvKeyboard": "back_dismisses_ime_and_restores_app_focus"
+}
