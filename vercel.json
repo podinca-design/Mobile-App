@@ -3,22 +3,22 @@
   "redirects": [
     {
       "source": "/download",
-      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
+      "destination": "/afterparty-firetv.apk",
       "permanent": false
     },
     {
       "source": "/download/",
-      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
+      "destination": "/afterparty-firetv.apk",
       "permanent": false
     },
     {
       "source": "/apk",
-      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
+      "destination": "/afterparty-firetv.apk",
       "permanent": false
     },
     {
       "source": "/apk/",
-      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
+      "destination": "/afterparty-firetv.apk",
       "permanent": false
     }
   ]
