@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { CONTENT, CONTENT_SCHEMA_VERSION } from "./content.js";
 
@@ -11,7 +11,7 @@ const MAX_PLAYERS = 12;
 const ROOM_TTL_HOURS = 18;
 const ADULT_CATEGORY_IDS = new Set(["spicy", "wild", "couples"]);
 const MAX_ROUND_SHOT_PENALTIES = 3;
-const TIPTOE_DEFAULT_SECONDS = 60;
+const TIPTOE_DEFAULT_SECONDS = 30;
 const GAME_OPTIONS = [
   { id: "truth_dare", label: "Truth or Dare" },
   { id: "questions", label: "Questions" },
@@ -251,6 +251,33 @@ function hostPlayerId(room, players) {
   return room?.host_player_id || players[0]?.id;
 }
 
+function teamNames(room) {
+  return {
+    team_a: room?.team_a_name || "Team A",
+    team_b: room?.team_b_name || "Team B",
+  };
+}
+
+function playerTeamId(player, index = 0) {
+  return player?.team_id || (index % 2 === 0 ? "team_a" : "team_b");
+}
+
+function orderPlayersForTeams(players) {
+  const teamA = [];
+  const teamB = [];
+  players.forEach((player, index) => {
+    if (playerTeamId(player, index) === "team_b") teamB.push(player);
+    else teamA.push(player);
+  });
+  const ordered = [];
+  const max = Math.max(teamA.length, teamB.length);
+  for (let i = 0; i < max; i += 1) {
+    if (teamA[i]) ordered.push({ ...teamA[i], join_order: ordered.length, team_id: "team_a" });
+    if (teamB[i]) ordered.push({ ...teamB[i], join_order: ordered.length, team_id: "team_b" });
+  }
+  return ordered;
+}
+
 function closeKeyboard() {
   if (document.activeElement && "blur" in document.activeElement) {
     document.activeElement.blur();
@@ -278,6 +305,27 @@ function playBuzzer() {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.36);
+  } catch (e) {
+    // Audio feedback is best-effort on TV browsers/WebViews.
+  }
+}
+
+function playCountdownBeep() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.14);
   } catch (e) {
     // Audio feedback is best-effort on TV browsers/WebViews.
   }
@@ -314,7 +362,7 @@ function qrUrlFor(code, token) {
 }
 
 // ---- Small UI atoms ----------------------------------------------------
-function Button({ children, onClick, variant = "solid", accent = "#34D6B0", disabled, style }) {
+function Button({ children, onClick, variant = "solid", accent = "#34D6B0", disabled, style, id }) {
   const base = {
     fontFamily: "'Sora', sans-serif",
     fontWeight: 700,
@@ -342,6 +390,7 @@ function Button({ children, onClick, variant = "solid", accent = "#34D6B0", disa
   };
   return (
     <button
+      id={id}
       onClick={disabled ? undefined : onClick}
       style={{ ...base, ...variants[variant], ...style }}
       onPointerDown={(e) => !disabled && (e.currentTarget.style.transform = "scale(0.97)")}
@@ -568,6 +617,7 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
         id: localId("player"),
         room_code: code,
         name: playerName,
+        team_id: index % 2 === 0 ? "team_a" : "team_b",
         join_order: index,
       }));
       const localRoom = {
@@ -579,6 +629,8 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
         category: gameMode === "tiptoe" ? topicPack : category,
         topic_pack: topicPack,
         timer_seconds: timerSeconds,
+        team_a_name: "Team A",
+        team_b_name: "Team B",
         room_locked: roomLock,
         status: "lobby",
         current_player_index: 0,
@@ -770,7 +822,7 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
             </Field>
             <Field label="Round timer">
               <SegmentedControl
-                options={[30, 45, 60, 90].map((seconds) => ({ id: String(seconds), label: `${seconds}s` }))}
+                options={[30, 45].map((seconds) => ({ id: String(seconds), label: `${seconds}s` }))}
                 value={String(timerSeconds)}
                 onChange={(value) => setTimerSeconds(Number(value))}
               />
@@ -1017,6 +1069,7 @@ function LobbyScreen({
   onRemovePlayer,
   onTransferHost,
   onAddLocalPlayer,
+  onMovePlayerTeam,
 }) {
   const isHost = hostPlayerId(room, players) === me.id;
   const isSingleDevice = room.play_mode === "single_device";
@@ -1026,6 +1079,7 @@ function LobbyScreen({
   const [inviteeName, setInviteeName] = useState("");
   const [localPlayerName, setLocalPlayerName] = useState("");
   const [adultSettingsConfirmed, setAdultSettingsConfirmed] = useState(false);
+  const names = teamNames(room);
 
   return (
     <div style={screenWrap}>
@@ -1163,6 +1217,50 @@ function LobbyScreen({
           </div>
         )}
         {inviteStatus && <div style={hintText}>{inviteStatus}</div>}
+        {room.game_mode === "tiptoe" && isHost && (
+          <div style={invitePanel}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>TEAMS</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <TextEntryRow actionLabel="Done" onAction={() => focusElement("start-game-button")}>
+                <TextField
+                  id="team-a-name"
+                  value={names.team_a}
+                  onChange={(value) => onRoomSettingsChange({ team_a_name: cleanDisplayName(value, 20) || "Team A" })}
+                  placeholder="Team A"
+                  maxLength={20}
+                />
+              </TextEntryRow>
+              <TextEntryRow actionLabel="Done" onAction={() => focusElement("start-game-button")}>
+                <TextField
+                  id="team-b-name"
+                  value={names.team_b}
+                  onChange={(value) => onRoomSettingsChange({ team_b_name: cleanDisplayName(value, 20) || "Team B" })}
+                  placeholder="Team B"
+                  maxLength={20}
+                />
+              </TextEntryRow>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {["team_a", "team_b"].map((teamId) => (
+                <div key={teamId} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 10 }}>
+                  <div style={{ ...eyebrow, color: teamId === "team_a" ? "#34D6B0" : "#FFB84D" }}>{names[teamId]}</div>
+                  {players.filter((player, index) => playerTeamId(player, index) === teamId).map((player) => (
+                    <div key={player.id} style={{ ...scoreRow, alignItems: "center" }}>
+                      <span>{player.name}</span>
+                      <button
+                        type="button"
+                        style={miniBtn}
+                        onClick={() => onMovePlayerTeam(player, teamId === "team_a" ? "team_b" : "team_a")}
+                      >
+                        Move
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {!isSingleDevice && isHost && (
           <div style={invitePanel}>
             <div style={{ ...eyebrow, marginBottom: 8 }}>PENDING INVITES</div>
@@ -1238,7 +1336,7 @@ function LobbyScreen({
                 </Field>
                 <Field label="Timer">
                   <SegmentedControl
-                    options={[30, 45, 60, 90].map((seconds) => ({ id: String(seconds), label: `${seconds}s` }))}
+                    options={[30, 45].map((seconds) => ({ id: String(seconds), label: `${seconds}s` }))}
                     value={String(room.timer_seconds || TIPTOE_DEFAULT_SECONDS)}
                     onChange={(value) => onRoomSettingsChange({ timer_seconds: Number(value) })}
                   />
@@ -1279,6 +1377,7 @@ function LobbyScreen({
 
         {isHost ? (
           <Button
+            id="start-game-button"
             accent={cat?.accent}
             disabled={room.status !== "playing" && players.length < 2}
             onClick={room.status === "playing" ? onReturnToGame : onStart}
@@ -1327,10 +1426,14 @@ function GameScreen({
   const currentPrompt = decodePrompt(room.current_prompt);
   const [flipped, setFlipped] = useState(false);
   const [tiptoeSecondsLeft, setTiptoeSecondsLeft] = useState(room.timer_seconds || TIPTOE_DEFAULT_SECONDS);
+  const lastBeepSecond = useRef(null);
+  const lastTimedOutPrompt = useRef(null);
   const isTiptoe = room.game_mode === "tiptoe";
   const tvMode = isTvMode(room);
   const displayModeLabel = DISPLAY_MODE_OPTIONS.find((option) => option.id === roomDisplayMode(room))?.label || "Multi-Device";
-  const currentTeam = isTiptoe ? (room.current_player_index % 2 === 0 ? "Team A" : "Team B") : null;
+  const names = teamNames(room);
+  const currentTeamId = isTiptoe ? playerTeamId(currentPlayer, room.current_player_index) : null;
+  const currentTeam = isTiptoe ? names[currentTeamId] : null;
 
   useEffect(() => {
     setFlipped(false);
@@ -1346,11 +1449,28 @@ function GameScreen({
       return;
     }
     setTiptoeSecondsLeft(room.timer_seconds || TIPTOE_DEFAULT_SECONDS);
+    lastBeepSecond.current = null;
     const timer = setInterval(() => {
-      setTiptoeSecondsLeft((seconds) => Math.max(0, seconds - 1));
+      setTiptoeSecondsLeft((seconds) => {
+        const next = Math.max(0, seconds - 1);
+        if (next > 0 && next <= 5 && lastBeepSecond.current !== next) {
+          lastBeepSecond.current = next;
+          playCountdownBeep();
+        }
+        return next;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, [isTiptoe, isPaused, hasPrompt, room.current_prompt, room.timer_seconds]);
+
+  useEffect(() => {
+    if (!isTiptoe || !hasPrompt || isPaused || !isHost || busy || tiptoeSecondsLeft !== 0) return;
+    const promptKey = room.current_prompt || `${room.current_player_index}`;
+    if (lastTimedOutPrompt.current === promptKey) return;
+    lastTimedOutPrompt.current = promptKey;
+    playBuzzer();
+    onAction("next");
+  }, [isTiptoe, hasPrompt, isPaused, isHost, busy, tiptoeSecondsLeft, room.current_prompt, room.current_player_index, onAction]);
 
   const accent = cat?.accent || "#34D6B0";
 
@@ -1428,8 +1548,27 @@ function GameScreen({
                       </span>
                     ))}
                   </div>
-                  <div style={{ marginTop: 20, fontSize: tvMode ? 54 : 42, fontFamily: "'Sora', sans-serif", fontWeight: 800, color: tiptoeSecondsLeft <= 10 ? "#FF5A4E" : "#FFB84D" }}>
-                    {tiptoeSecondsLeft}s
+                  <div
+                    style={{
+                      marginTop: 20,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 12,
+                      padding: "10px 18px",
+                      borderRadius: 999,
+                      border: `2px solid ${tiptoeSecondsLeft <= 10 ? "#FF5A4E" : "#FFB84D"}`,
+                      background: tiptoeSecondsLeft <= 10 ? "rgba(255,90,78,0.14)" : "rgba(255,184,77,0.12)",
+                      fontSize: tvMode ? 54 : 42,
+                      fontFamily: "'Sora', sans-serif",
+                      fontWeight: 800,
+                      color: tiptoeSecondsLeft <= 10 ? "#FF5A4E" : "#FFB84D",
+                    }}
+                    aria-live="polite"
+                    aria-label={`${tiptoeSecondsLeft} seconds remaining`}
+                  >
+                    <span aria-hidden="true">⌛</span>
+                    <span>{tiptoeSecondsLeft}s</span>
                   </div>
                 </div>
               ) : hasPrompt ? (
@@ -1541,8 +1680,8 @@ function GameScreen({
         {isTiptoe && !hasPrompt && (
           <div style={scorePanel}>
             <div style={{ ...eyebrow, marginBottom: 8 }}>SCORE</div>
-            <div style={scoreRow}><span>Team A</span><span>{tiptoeScore.teamA}</span></div>
-            <div style={scoreRow}><span>Team B</span><span>{tiptoeScore.teamB}</span></div>
+            <div style={scoreRow}><span>{names.team_a}</span><span>{tiptoeScore.teamA}</span></div>
+            <div style={scoreRow}><span>{names.team_b}</span><span>{tiptoeScore.teamB}</span></div>
           </div>
         )}
         {!isTiptoe && score.length > 0 && (
@@ -2265,8 +2404,8 @@ export default function App() {
     .filter((entry) => entry.type === "tiptoe_score")
     .reduce(
       (acc, entry) => {
-        if (entry.team === "Team A") acc.teamA += entry.points;
-        if (entry.team === "Team B") acc.teamB += entry.points;
+        if (entry.team === "team_a" || entry.team === "Team A") acc.teamA += entry.points;
+        if (entry.team === "team_b" || entry.team === "Team B") acc.teamB += entry.points;
         return acc;
       },
       { teamA: 0, teamB: 0 },
@@ -2322,6 +2461,8 @@ export default function App() {
     setRoundPenaltyCounts({});
     setView("game");
     if (room?.play_mode === "single_device") {
+      const orderedPlayers = room.game_mode === "tiptoe" ? orderPlayersForTeams(players) : players;
+      if (room.game_mode === "tiptoe") setPlayers(orderedPlayers);
       setRoom((current) => ({
         ...current,
         status: "playing",
@@ -2331,6 +2472,14 @@ export default function App() {
         session_started_at: new Date().toISOString(),
       }));
       return;
+    }
+    if (room?.game_mode === "tiptoe") {
+      const orderedPlayers = orderPlayersForTeams(players);
+      await Promise.all(
+        orderedPlayers.map((player, index) =>
+          supabase.from("players").update({ join_order: index, team_id: player.team_id }).eq("id", player.id),
+        ),
+      );
     }
     const { error } = await supabase
       .from("rooms")
@@ -2586,6 +2735,18 @@ export default function App() {
     setInviteStatus(`${name} added.`);
   }
 
+  async function handleMovePlayerTeam(player, teamId) {
+    if (!player) return;
+    if (room?.play_mode === "single_device") {
+      setPlayers((items) => items.map((item) => (item.id === player.id ? { ...item, team_id: teamId } : item)));
+      return;
+    }
+    const { error } = await supabase.from("players").update({ team_id: teamId }).eq("id", player.id);
+    if (error) {
+      setInviteStatus("Run the latest Supabase migration to save team assignments in multiplayer rooms.");
+    }
+  }
+
 
   async function handleTransferHost(player) {
     if (!player || actionInFlight) return;
@@ -2656,7 +2817,7 @@ export default function App() {
           setRoom((current) => ({ ...current, current_prompt: encodePrompt(prompt), current_type: kind }));
         } else if (action.startsWith("tiptoe_")) {
           const points = action === "tiptoe_correct" ? 1 : action === "tiptoe_forbidden" ? -1 : 0;
-          const team = room.current_player_index % 2 === 0 ? "Team A" : "Team B";
+          const team = playerTeamId(players[room.current_player_index % players.length], room.current_player_index);
           if (action === "tiptoe_forbidden") playBuzzer();
           const nextPrompt = pickSmartPrompt(room, "tiptoe", players.length);
           setActivityLog((entries) => [
@@ -2743,7 +2904,7 @@ export default function App() {
         }
       } else if (action.startsWith("tiptoe_")) {
         const points = action === "tiptoe_correct" ? 1 : action === "tiptoe_forbidden" ? -1 : 0;
-        const team = room.current_player_index % 2 === 0 ? "Team A" : "Team B";
+        const team = playerTeamId(players[room.current_player_index % players.length], room.current_player_index);
         if (action === "tiptoe_forbidden") playBuzzer();
         const nextPrompt = pickSmartPrompt(room, "tiptoe", players.length);
         setActivityLog((entries) => [
@@ -2928,6 +3089,7 @@ export default function App() {
         onRemovePlayer={handleRemovePlayer}
         onTransferHost={handleTransferHost}
         onAddLocalPlayer={handleAddLocalPlayer}
+        onMovePlayerTeam={handleMovePlayerTeam}
       />
     );
   }
