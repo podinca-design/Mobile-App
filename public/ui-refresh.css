@@ -1,0 +1,205 @@
+/* Afterparty v1.1.3 additive UI refresh.
+   This layer intentionally styles the proven v1.1.2 React flow without replacing game state logic. */
+:root {
+  --ap-bg: #090810;
+  --ap-panel: rgba(19, 16, 32, 0.82);
+  --ap-border: rgba(255,255,255,.13);
+  --ap-text: #f8f5ff;
+  --ap-muted: #aaa2bd;
+  --ap-green: #7df0d2;
+  --ap-pink: #ff5aa8;
+  --ap-purple: #9b78ff;
+  --ap-gold: #ffbd57;
+  --ap-red: #ff675d;
+}
+html, body, #root { min-height: 100%; }
+body {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(122,72,255,.18), transparent 32rem),
+    radial-gradient(circle at 95% 18%, rgba(255,70,151,.12), transparent 30rem),
+    var(--ap-bg) !important;
+}
+button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 4px solid #fff !important;
+  outline-offset: 4px !important;
+  box-shadow: 0 0 0 7px rgba(125,240,210,.34), 0 0 34px rgba(125,240,210,.42) !important;
+}
+.ap-home-screen {
+  max-width: 1180px !important;
+  padding-left: clamp(20px, 5vw, 72px) !important;
+  padding-right: clamp(20px, 5vw, 72px) !important;
+}
+.ap-home-screen img[src*="afterparty-thumbnail"] {
+  filter: saturate(1.08) contrast(1.06) brightness(.84);
+  transform: scale(1.015);
+}
+.ap-home-screen h1 {
+  font-size: clamp(46px, 8vw, 86px) !important;
+  line-height: .92 !important;
+  letter-spacing: -.055em !important;
+  text-shadow: 0 0 42px rgba(255,82,166,.14);
+}
+.ap-home-screen .ap-native-new-game { display: none !important; }
+.ap-game-picker {
+  margin: 4px 0 18px;
+  padding: clamp(16px, 2.5vw, 24px);
+  border-radius: 24px;
+  border: 1px solid var(--ap-border);
+  background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.025));
+  box-shadow: 0 22px 70px rgba(0,0,0,.28);
+  backdrop-filter: blur(18px);
+}
+.ap-game-picker__eyebrow {
+  font: 800 11px/1.2 Manrope, sans-serif;
+  letter-spacing: .16em;
+  color: var(--ap-green);
+  margin-bottom: 7px;
+}
+.ap-game-picker__title {
+  color: var(--ap-text);
+  font: 800 clamp(22px, 4vw, 32px)/1.06 Sora, sans-serif;
+  letter-spacing: -.035em;
+  margin-bottom: 16px;
+}
+.ap-game-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.ap-game-tile {
+  position: relative;
+  min-height: 154px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 5px;
+  text-align: left;
+  border-radius: 20px !important;
+  border: 1.5px solid color-mix(in srgb, var(--tile-accent) 58%, transparent) !important;
+  background:
+    radial-gradient(circle at 78% 15%, color-mix(in srgb, var(--tile-accent) 30%, transparent), transparent 42%),
+    rgba(8,7,14,.88) !important;
+  color: var(--ap-text) !important;
+  padding: 17px !important;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform .17s ease, border-color .17s ease, box-shadow .17s ease !important;
+}
+.ap-game-tile:hover, .ap-game-tile:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--tile-accent) !important;
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--tile-accent) 18%, transparent) !important;
+}
+.ap-game-tile__icon {
+  position: absolute;
+  right: 13px;
+  top: 11px;
+  width: 54px;
+  height: 54px;
+  color: var(--tile-accent);
+  opacity: .96;
+}
+.ap-game-tile__icon svg { width: 100%; height: 100%; }
+.ap-game-tile strong { font: 800 17px/1.1 Sora, sans-serif; }
+.ap-game-tile small { color: #b9b1c8; font: 600 12px/1.35 Manrope, sans-serif; }
+.ap-game-tile[data-game="tiptoe"]::after {
+  content: "TEAM PLAY";
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  font: 800 9px/1 Manrope, sans-serif;
+  letter-spacing: .1em;
+  color: #0b0b10;
+  background: var(--tile-accent);
+  padding: 6px 8px;
+  border-radius: 999px;
+}
+.ap-setup-screen { max-width: 920px !important; }
+.ap-setup-screen h2 { font-size: clamp(28px, 5vw, 42px) !important; letter-spacing: -.035em !important; }
+.ap-choice-card,
+.ap-display-option,
+.ap-game-option,
+.ap-play-format-option,
+.ap-topic-option {
+  position: relative !important;
+  min-height: 92px !important;
+  text-align: left !important;
+  padding: 17px 18px 17px 66px !important;
+  border-radius: 18px !important;
+  border-width: 1.5px !important;
+  overflow: hidden !important;
+}
+.ap-choice-card::before,
+.ap-display-option::before,
+.ap-game-option::before,
+.ap-play-format-option::before,
+.ap-topic-option::before {
+  content: attr(data-ap-symbol);
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.09);
+  color: var(--ap-card-accent, #fff);
+  font: 900 21px/1 Sora, sans-serif;
+}
+.ap-choice-card::after,
+.ap-display-option::after,
+.ap-game-option::after,
+.ap-play-format-option::after,
+.ap-topic-option::after {
+  content: attr(data-ap-subtitle);
+  display: block;
+  margin-top: 7px;
+  color: #aaa2bd;
+  font: 600 11px/1.35 Manrope, sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+}
+.ap-vibe-mild { --ap-card-accent: #34d6b0; }
+.ap-vibe-bold { --ap-card-accent: #ff675d; }
+.ap-vibe-couples { --ap-card-accent: #f163b3; }
+.ap-vibe-spicy { --ap-card-accent: #dd63ff; }
+.ap-vibe-wild { --ap-card-accent: #ffbd57; }
+.ap-qr-panel {
+  border: 1.5px solid rgba(125,240,210,.38) !important;
+  background: radial-gradient(circle at 16% 18%, rgba(125,240,210,.12), transparent 34%), rgba(255,255,255,.055) !important;
+  box-shadow: 0 18px 46px rgba(0,0,0,.22);
+}
+.ap-qr-panel::before {
+  content: "SCAN TO JOIN";
+  display: block;
+  color: var(--ap-green);
+  font: 900 11px/1 Manrope, sans-serif;
+  letter-spacing: .15em;
+  margin-bottom: 10px;
+}
+.ap-room-code { text-shadow: 0 0 28px color-mix(in srgb, currentColor 35%, transparent); }
+@media (min-width: 900px) and (min-height: 500px) {
+  #root > div {
+    max-width: 1180px !important;
+    min-height: 100vh !important;
+    padding: 34px clamp(44px, 5vw, 86px) !important;
+  }
+  .ap-home-screen .ap-game-picker__grid { gap: 18px; }
+  .ap-home-screen .ap-game-tile { min-height: 188px; padding: 22px !important; }
+  .ap-home-screen .ap-game-tile strong { font-size: 21px; }
+  .ap-home-screen .ap-game-tile small { font-size: 13px; max-width: 80%; }
+  .ap-setup-screen button { font-size: 17px !important; }
+  .ap-choice-card, .ap-display-option, .ap-game-option, .ap-play-format-option, .ap-topic-option { min-height: 108px !important; }
+}
+@media (max-width: 720px) {
+  .ap-game-picker__grid { grid-template-columns: 1fr; }
+  .ap-game-tile { min-height: 112px; }
+  .ap-game-tile small { max-width: 76%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-game-tile { transition: none !important; }
+  .ap-game-tile:hover, .ap-game-tile:focus-visible { transform: none; }
+}
