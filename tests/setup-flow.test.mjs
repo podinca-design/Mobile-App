@@ -21,7 +21,7 @@ test("New Game routes to the setup wizard, not the legacy create screen", () => 
 test("setup wizard keeps configuration before player entry", () => {
   const wizard = sliceBetween("function SetupWizardScreen", "function JoinRoomScreen");
   assert.match(wizard, /const \[step, setStep\] = useState\("game"\)/);
-  assert.match(wizard, /const steps = \["game", "format", "display", "settings", "players"/);
+  assert.match(wizard, /const steps = setupStepsForState\(\{ playFormat \}\)/);
 
   const game = wizard.indexOf('step === "game"');
   const format = wizard.indexOf('step === "format"');

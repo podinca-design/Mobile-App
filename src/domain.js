@@ -55,6 +55,41 @@ export function validatePairs(players) {
   return [...counts.entries()].filter(([, count]) => count !== 2).map(([pairId, count]) => ({ pairId, count }));
 }
 
+export function isPairPlayEligible({ gameMode, playFormat, category }) {
+  return ["truth_dare", "questions"].includes(gameMode) && playFormat === "teams" && category === "couples";
+}
+
+export function normalizeSetupSelection(current, change) {
+  const next = { ...current, ...change };
+  if (Object.prototype.hasOwnProperty.call(change, "gameMode")) {
+    if (change.gameMode === "tiptoe") {
+      next.playFormat = "teams";
+      next.pairMode = false;
+    } else if (current.gameMode === "tiptoe") {
+      next.playFormat = "individual";
+      next.pairMode = false;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(change, "playFormat") && change.playFormat === "individual") {
+    next.pairMode = false;
+  }
+  if (Object.prototype.hasOwnProperty.call(change, "category") && change.category !== "couples") {
+    next.pairMode = false;
+  }
+  if (next.gameMode === "tiptoe") {
+    next.playFormat = "teams";
+    next.pairMode = false;
+  }
+  if (!isPairPlayEligible(next)) {
+    next.pairMode = false;
+  }
+  return next;
+}
+
+export function setupStepsForState({ playFormat }) {
+  return ["game", "format", "display", "settings", "players", ...(playFormat === "teams" ? ["teams"] : []), "review"];
+}
+
 export function nextFairRoles(teamPlayers, roundNumber = 1) {
   const active = teamPlayers.filter((player) => player.lifecycle_status === PLAYER_LIFECYCLE.ACTIVE);
   if (active.length < 2) return { clueGiverId: null, guesserId: null };

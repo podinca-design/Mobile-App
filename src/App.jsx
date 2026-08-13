@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { CONTENT, CONTENT_SCHEMA_VERSION, ensureContentCategory } from "./content.js";
 import { QRCodeSVG } from "qrcode.react";
-import { autoBalancePlayers, autoPairPlayers, cleanDisplayName, createPlayer, nextFairRoles, validatePairs, validateTeams } from "./domain.js";
+import { autoBalancePlayers, autoPairPlayers, cleanDisplayName, createPlayer, isPairPlayEligible, nextFairRoles, normalizeSetupSelection, setupStepsForState, validatePairs, validateTeams } from "./domain.js";
 import { TIPTOE_PACKS } from "./tiptoe-content.js";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -882,9 +882,21 @@ function SetupWizardScreen({ onRoomCreated, onLocalRoomCreated, onBack }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const localMode = displayMode === "pass_play" || displayMode === "tv_only";
-  const requiresTeams = gameMode === "tiptoe" || playFormat === "teams";
-  const steps = ["game", "format", "display", "settings", "players", ...(requiresTeams ? ["teams"] : []), "review"];
+  const requiresTeams = playFormat === "teams";
+  const canPairPlay = isPairPlayEligible({ gameMode, playFormat, category });
+  const steps = setupStepsForState({ playFormat });
   const stepIndex = steps.indexOf(step);
+
+  function applySetupChange(change) {
+    const current = { gameMode, playFormat, category, pairMode };
+    const next = normalizeSetupSelection(current, change);
+    const pairCleared = pairMode && !next.pairMode;
+    setGameMode(next.gameMode);
+    setPlayFormat(next.playFormat);
+    setCategory(next.category);
+    setPairMode(next.pairMode);
+    if (pairCleared) setPlayers((items) => items.map((player) => ({ ...player, pair_id: null })));
+  }
 
   function addPlayer() {
     const name = cleanDisplayName(draftName);
@@ -904,7 +916,7 @@ function SetupWizardScreen({ onRoomCreated, onLocalRoomCreated, onBack }) {
     const isPlayerEntryStep = step === steps[4];
     if (isPlayerEntryStep && localMode && players.length < 2) return setError("Need at least 2 players.");
     if (isPlayerEntryStep && !localMode && displayMode === "multi_device" && players.length < 1) return setError("Add the host player before continuing.");
-    if (step === "teams") {
+    if (step === "teams" && requiresTeams) {
       if (pairMode && validatePairs(players).length) return setError("Every Pair must contain exactly two players.");
       const minimum = gameMode === "tiptoe" ? 2 : 1;
       const invalid = validateTeams(players, ["team_a", "team_b"], minimum);
@@ -993,6 +1005,12 @@ function SetupWizardScreen({ onRoomCreated, onLocalRoomCreated, onBack }) {
   const optionButton = (option, active, onClick) => (
     <Button key={option.id} variant={active ? "solid" : "outline"} accent={active ? "#34D6B0" : "#E9E7F0"} onClick={onClick}>{option.label}</Button>
   );
+  const gameLabel = GAME_OPTIONS.find((item)=>item.id===gameMode)?.label;
+  const formatLabel = gameMode === "tiptoe" ? "Teams" : pairMode ? "Teams \u00b7 Pair Play" : PLAY_FORMAT_OPTIONS.find((item)=>item.id===playFormat)?.label;
+  const displayLabel = DISPLAY_MODE_OPTIONS.find((item)=>item.id===displayMode)?.label;
+  const contentLabel = gameMode === "tiptoe" ? TIPTOE_PACKS.find((item)=>item.id===topicPack)?.label : CONTENT.categories.find((item)=>item.id===category)?.label;
+  const teamSummary = (teamId) => `${teamNamesState[teamId]} \u2014 ${players.filter((player) => player.team_id === teamId).length} players`;
+  const pairCount = new Set(players.map((player) => player.pair_id).filter(Boolean)).size;
 
   return (
     <div style={screenWrap}>
@@ -1000,12 +1018,12 @@ function SetupWizardScreen({ onRoomCreated, onLocalRoomCreated, onBack }) {
       <div style={{ ...eyebrow, marginTop: 28 }}>NEW GAME · {stepIndex + 1} OF {steps.length}</div>
       <div style={{ height: 6, background: "rgba(255,255,255,.12)", borderRadius: 8 }}><div style={{ width: `${((stepIndex + 1) / steps.length) * 100}%`, height: "100%", background: "#34D6B0", borderRadius: 8 }} /></div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 22 }}>
-        {step === "game" && <><h2 style={sectionTitle}>Choose the game</h2>{GAME_OPTIONS.map((option) => optionButton(option, gameMode === option.id, () => { setGameMode(option.id); if (option.id === "tiptoe") setPlayFormat("teams"); }))}</>}
-        {step === "format" && <><h2 style={sectionTitle}>Choose the play format</h2>{(gameMode === "tiptoe" ? [{ id: "teams", label: "Teams (required)" }] : PLAY_FORMAT_OPTIONS).map((option) => optionButton(option, playFormat === option.id, () => setPlayFormat(option.id)))}</>}
+        {step === "game" && <><h2 style={sectionTitle}>Choose the game</h2>{GAME_OPTIONS.map((option) => optionButton(option, gameMode === option.id, () => applySetupChange({ gameMode: option.id })))}</>}
+        {step === "format" && <><h2 style={sectionTitle}>Choose the play format</h2>{(gameMode === "tiptoe" ? [{ id: "teams", label: "Teams \u2014 required for Tiptoe" }] : PLAY_FORMAT_OPTIONS).map((option) => optionButton(option, playFormat === option.id, () => applySetupChange({ playFormat: option.id })))}</>}
         {step === "display" && <><h2 style={sectionTitle}>Choose the display mode</h2>{DISPLAY_MODE_OPTIONS.map((option) => optionButton(option, displayMode === option.id, () => setDisplayMode(option.id)))}</>}
         {step === "settings" && <>
           <h2 style={sectionTitle}>{gameMode === "tiptoe" ? "Choose a Topic Pack" : "Choose the content vibe"}</h2>
-          {(gameMode === "tiptoe" ? TIPTOE_PACKS : CONTENT.categories).map((option) => <CategoryChip key={option.id} label={option.label} accent={option.accent} active={(gameMode === "tiptoe" ? topicPack : category) === option.id} onClick={() => gameMode === "tiptoe" ? setTopicPack(option.id) : setCategory(option.id)} />)}
+          {(gameMode === "tiptoe" ? TIPTOE_PACKS : CONTENT.categories).map((option) => <CategoryChip key={option.id} label={option.label} accent={option.accent} active={(gameMode === "tiptoe" ? topicPack : category) === option.id} onClick={() => gameMode === "tiptoe" ? setTopicPack(option.id) : applySetupChange({ category: option.id })} />)}
           {gameMode === "tiptoe" ? <Field label="Round timer"><SegmentedControl options={[30,45,60,90].map((seconds) => ({ id:String(seconds), label:`${seconds}s` }))} value={String(timerSeconds)} onChange={(value) => setTimerSeconds(Number(value))} /></Field> : <Field label="Session timer"><SegmentedControl options={[30,60,90,0].map((minutes) => ({ id:String(minutes), label:minutes ? `${minutes} min` : "Unlimited" }))} value={String(sessionMinutes)} onChange={(value) => setSessionMinutes(Number(value))} /></Field>}
         </>}
         {step === "players" && <>
@@ -1017,16 +1035,18 @@ function SetupWizardScreen({ onRoomCreated, onLocalRoomCreated, onBack }) {
           </>}
         </>}
         {step === "teams" && <>
-          <h2 style={sectionTitle}>{category === "couples" ? "Teams or Pair Play" : "Name and assign teams"}</h2>
-          {category === "couples" && <SegmentedControl options={[{id:"standard",label:"Standard Teams"},{id:"pairs",label:"Pair Play"}]} value={pairMode ? "pairs" : "standard"} onChange={(value) => { setPairMode(value === "pairs"); setPlayers((items) => value === "pairs" ? autoPairPlayers(items) : autoBalancePlayers(items)); }} />}
+          <h2 style={sectionTitle}>{canPairPlay ? "Teams or Pair Play" : "Name and assign teams"}</h2>
+          {canPairPlay && <SegmentedControl options={[{id:"standard",label:"Standard Teams"},{id:"pairs",label:"Pair Play"}]} value={pairMode ? "pairs" : "standard"} onChange={(value) => { setPairMode(value === "pairs"); setPlayers((items) => value === "pairs" ? autoPairPlayers(items) : autoBalancePlayers(items)); }} />}
           {!pairMode && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{["team_a","team_b"].map((teamId) => <TextField key={teamId} value={teamNamesState[teamId]} onChange={(value) => setTeamNamesState((names) => ({...names,[teamId]:cleanDisplayName(value,20)}))} placeholder={teamId === "team_a" ? "Team A" : "Team B"} />)}</div>}
           <Button variant="outline" onClick={() => setPlayers((items) => pairMode ? autoPairPlayers(items) : autoBalancePlayers(items))}>{pairMode ? "Auto Pair" : "Auto Balance"}</Button>
           {players.map((player) => <div key={player.id} style={playerRow}><span>{player.name}</span>{pairMode ? <span>{player.pair_id || "Unpaired"}</span> : <SegmentedControl options={[{id:"team_a",label:teamNamesState.team_a},{id:"team_b",label:teamNamesState.team_b}]} value={player.team_id || ""} onChange={(value) => updatePlayer(player.id,{team_id:value})} />}</div>)}
         </>}
         {step === "review" && <>
           <h2 style={sectionTitle}>Review and ready</h2>
-          {[['Game',GAME_OPTIONS.find((item)=>item.id===gameMode)?.label],['Play Format',gameMode==='tiptoe'?'Teams':PLAY_FORMAT_OPTIONS.find((item)=>item.id===playFormat)?.label],['Display Mode',DISPLAY_MODE_OPTIONS.find((item)=>item.id===displayMode)?.label],[gameMode==='tiptoe'?'Topic Pack':'Content Vibe',gameMode==='tiptoe'?TIPTOE_PACKS.find((item)=>item.id===topicPack)?.label:CONTENT.categories.find((item)=>item.id===category)?.label],['Players',displayMode==='tv_phones'?'Join by phone':players.length]].map(([label,value]) => <div key={label} style={scoreRow}><span>{label}</span><strong>{value}</strong></div>)}
-          {requiresTeams && !pairMode && <div style={hintText}>{teamNamesState.team_a}: {players.filter((player)=>player.team_id==='team_a').map((player)=>player.name).join(', ')}<br />{teamNamesState.team_b}: {players.filter((player)=>player.team_id==='team_b').map((player)=>player.name).join(', ')}</div>}
+          {[['Game',gameLabel],['Play Format',formatLabel],['Display Mode',displayLabel],[gameMode==='tiptoe'?'Topic Pack':'Content Vibe',contentLabel]].map(([label,value]) => <div key={label} style={scoreRow}><span>{label}</span><strong>{value}</strong></div>)}
+          {requiresTeams && !pairMode && <><div style={scoreRow}><span>{teamNamesState.team_a}</span><strong>{teamSummary("team_a")}</strong></div><div style={scoreRow}><span>{teamNamesState.team_b}</span><strong>{teamSummary("team_b")}</strong></div></>}
+          {requiresTeams && pairMode && <div style={scoreRow}><span>Pairs</span><strong>{pairCount} Pairs</strong></div>}
+          {!requiresTeams && <div style={scoreRow}><span>Players</span><strong>{displayMode==='tv_phones'?'Join by phone':players.length}</strong></div>}
           <label style={checkRow}><input type="checkbox" checked={ageConfirmed} onChange={(event)=>setAgeConfirmed(event.target.checked)} /><span>Everyone is 21+; consent and non-alcoholic substitutions are always available.</span></label>
           {!localMode && <label style={checkRow}><input type="checkbox" checked={roomLock} onChange={(event)=>setRoomLock(event.target.checked)} /><span>Lock room after play starts; late joins wait for a safe boundary.</span></label>}
           <Button accent="#34D6B0" disabled={!ageConfirmed || busy} onClick={createGame}>{busy ? "Creating…" : localMode ? "Ready for Lobby" : "Create Room"}</Button>

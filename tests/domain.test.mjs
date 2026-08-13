@@ -6,8 +6,11 @@ import {
   cleanDisplayName,
   consumeDeckItem,
   createDeck,
+  isPairPlayEligible,
   nextFairRoles,
+  normalizeSetupSelection,
   remainingRoundMs,
+  setupStepsForState,
   tiptoeAction,
   validatePairs,
   validateTeams,
@@ -66,4 +69,50 @@ test("Tiptoe packs contain 100 unique cards and targets each", () => {
   assert.equal(result.valid, true, result.errors.join("\n"));
   assert.ok(result.cardCount >= 300);
   assert.equal(result.targetCount, result.cardCount);
+});
+
+test("play format defaults and Teams choices stay explicit for Truth/Dare and Questions", () => {
+  const truth = { gameMode: "truth_dare", playFormat: "individual", category: "mild", pairMode: false };
+  assert.equal(normalizeSetupSelection(truth, {}).playFormat, "individual");
+  assert.deepEqual(setupStepsForState(truth), ["game", "format", "display", "settings", "players", "review"]);
+  assert.deepEqual(setupStepsForState(normalizeSetupSelection(truth, { playFormat: "teams" })), ["game", "format", "display", "settings", "players", "teams", "review"]);
+
+  const questions = { ...truth, gameMode: "questions" };
+  assert.equal(normalizeSetupSelection(questions, {}).playFormat, "individual");
+  assert.deepEqual(setupStepsForState(questions), ["game", "format", "display", "settings", "players", "review"]);
+  assert.deepEqual(setupStepsForState(normalizeSetupSelection(questions, { playFormat: "teams" })), ["game", "format", "display", "settings", "players", "teams", "review"]);
+});
+
+test("Tiptoe is Teams-only and leaving Tiptoe resets to Individual", () => {
+  const truth = { gameMode: "truth_dare", playFormat: "individual", category: "mild", pairMode: false };
+  const tiptoe = normalizeSetupSelection(truth, { gameMode: "tiptoe" });
+  assert.equal(tiptoe.playFormat, "teams");
+  assert.equal(tiptoe.pairMode, false);
+  assert.deepEqual(setupStepsForState(tiptoe), ["game", "format", "display", "settings", "players", "teams", "review"]);
+
+  const backToTruth = normalizeSetupSelection(tiptoe, { gameMode: "truth_dare" });
+  assert.equal(backToTruth.playFormat, "individual");
+  assert.equal(backToTruth.pairMode, false);
+});
+
+test("Couples / Flirty only opens team setup when Teams is selected", () => {
+  const individual = { gameMode: "truth_dare", playFormat: "individual", category: "couples", pairMode: false };
+  assert.equal(isPairPlayEligible(individual), false);
+  assert.deepEqual(setupStepsForState(individual), ["game", "format", "display", "settings", "players", "review"]);
+
+  const teams = normalizeSetupSelection(individual, { playFormat: "teams" });
+  assert.equal(isPairPlayEligible(teams), true);
+  assert.deepEqual(setupStepsForState(teams), ["game", "format", "display", "settings", "players", "teams", "review"]);
+});
+
+test("Pair Play clears when vibe or game no longer supports it", () => {
+  const pairPlay = { gameMode: "questions", playFormat: "teams", category: "couples", pairMode: true };
+  const wild = normalizeSetupSelection(pairPlay, { category: "wild" });
+  assert.equal(wild.playFormat, "teams");
+  assert.equal(wild.pairMode, false);
+
+  const tiptoe = normalizeSetupSelection(pairPlay, { gameMode: "tiptoe" });
+  assert.equal(tiptoe.playFormat, "teams");
+  assert.equal(tiptoe.pairMode, false);
+  assert.equal(isPairPlayEligible(tiptoe), false);
 });
