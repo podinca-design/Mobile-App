@@ -901,8 +901,9 @@ function SetupWizardScreen({ onRoomCreated, onLocalRoomCreated, onBack }) {
 
   function nextStep() {
     setError("");
-    if (step === "players" && localMode && players.length < 2) return setError("Need at least 2 players.");
-    if (step === "players" && !localMode && displayMode === "multi_device" && players.length < 1) return setError("Add the host player before continuing.");
+    const isPlayerEntryStep = step === steps[4];
+    if (isPlayerEntryStep && localMode && players.length < 2) return setError("Need at least 2 players.");
+    if (isPlayerEntryStep && !localMode && displayMode === "multi_device" && players.length < 1) return setError("Add the host player before continuing.");
     if (step === "teams") {
       if (pairMode && validatePairs(players).length) return setError("Every Pair must contain exactly two players.");
       const minimum = gameMode === "tiptoe" ? 2 : 1;
