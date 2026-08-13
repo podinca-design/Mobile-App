@@ -76,10 +76,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   gap: 5px;
   text-align: left;
   border-radius: 20px !important;
-  border: 1.5px solid color-mix(in srgb, var(--tile-accent) 58%, transparent) !important;
-  background:
-    radial-gradient(circle at 78% 15%, color-mix(in srgb, var(--tile-accent) 30%, transparent), transparent 42%),
-    rgba(8,7,14,.88) !important;
+  border: 1.5px solid var(--tile-accent) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.075), rgba(8,7,14,.96)) !important;
   color: var(--ap-text) !important;
   padding: 17px !important;
   cursor: pointer;
@@ -89,7 +87,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 .ap-game-tile:hover, .ap-game-tile:focus-visible {
   transform: translateY(-3px);
   border-color: var(--tile-accent) !important;
-  box-shadow: 0 16px 34px color-mix(in srgb, var(--tile-accent) 18%, transparent) !important;
+  box-shadow: 0 16px 34px rgba(0,0,0,.36) !important;
 }
 .ap-game-tile__icon {
   position: absolute;
@@ -180,7 +178,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   letter-spacing: .15em;
   margin-bottom: 10px;
 }
-.ap-room-code { text-shadow: 0 0 28px color-mix(in srgb, currentColor 35%, transparent); }
+.ap-room-code { text-shadow: 0 0 28px rgba(125,240,210,.30); }
 @media (min-width: 900px) and (min-height: 500px) {
   #root > div {
     max-width: 1180px !important;
