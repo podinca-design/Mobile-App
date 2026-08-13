@@ -11,12 +11,85 @@ const MAX_PLAYERS = 12;
 const ROOM_TTL_HOURS = 18;
 const ADULT_CATEGORY_IDS = new Set(["spicy", "wild", "couples"]);
 const MAX_ROUND_SHOT_PENALTIES = 3;
+const TIPTOE_DEFAULT_SECONDS = 60;
+const GAME_OPTIONS = [
+  { id: "truth_dare", label: "Truth or Dare" },
+  { id: "questions", label: "Questions" },
+  { id: "tiptoe", label: "Tiptoe" },
+];
+const DISPLAY_MODE_OPTIONS = [
+  { id: "pass_play", label: "Pass & Play" },
+  { id: "multi_device", label: "Multi-Device" },
+  { id: "tv_only", label: "TV Only" },
+  { id: "tv_phones", label: "TV + Phones" },
+];
+const PLAY_FORMAT_OPTIONS = [
+  { id: "individual", label: "Individual" },
+  { id: "teams", label: "Teams" },
+];
+const TIPTOE_PACKS = [
+  {
+    id: "party",
+    label: "Party",
+    accent: "#FFB84D",
+    cards: [
+      { id: "tiptoe_party_001", target: "afterparty", forbidden: ["late", "drinks", "music", "night"] },
+      { id: "tiptoe_party_002", target: "karaoke", forbidden: ["sing", "microphone", "song", "lyrics"] },
+      { id: "tiptoe_party_003", target: "dance floor", forbidden: ["moves", "music", "club", "party"] },
+      { id: "tiptoe_party_004", target: "group chat", forbidden: ["text", "message", "phone", "friends"] },
+      { id: "tiptoe_party_005", target: "bottle service", forbidden: ["club", "table", "champagne", "server"] },
+      { id: "tiptoe_party_006", target: "photo booth", forbidden: ["picture", "camera", "pose", "strip"] },
+      { id: "tiptoe_party_007", target: "playlist", forbidden: ["music", "songs", "DJ", "queue"] },
+      { id: "tiptoe_party_008", target: "last call", forbidden: ["bar", "closing", "drink", "time"] },
+      { id: "tiptoe_party_009", target: "party favor", forbidden: ["gift", "guest", "bag", "surprise"] },
+      { id: "tiptoe_party_010", target: "house rules", forbidden: ["game", "allowed", "host", "instructions"] },
+    ],
+  },
+  {
+    id: "flirty",
+    label: "Flirty",
+    accent: "#E0529C",
+    cards: [
+      { id: "tiptoe_flirty_001", target: "first crush", forbidden: ["school", "like", "kid", "secret"] },
+      { id: "tiptoe_flirty_002", target: "slow dance", forbidden: ["music", "close", "arms", "prom"] },
+      { id: "tiptoe_flirty_003", target: "eye contact", forbidden: ["look", "stare", "eyes", "face"] },
+      { id: "tiptoe_flirty_004", target: "pickup line", forbidden: ["flirt", "bar", "cheesy", "sentence"] },
+      { id: "tiptoe_flirty_005", target: "chemistry", forbidden: ["spark", "science", "attraction", "vibe"] },
+      { id: "tiptoe_flirty_006", target: "date night", forbidden: ["dinner", "movie", "romance", "couple"] },
+      { id: "tiptoe_flirty_007", target: "butterflies", forbidden: ["stomach", "nervous", "wings", "crush"] },
+      { id: "tiptoe_flirty_008", target: "compliment", forbidden: ["nice", "pretty", "say", "praise"] },
+      { id: "tiptoe_flirty_009", target: "love language", forbidden: ["words", "gifts", "touch", "acts"] },
+      { id: "tiptoe_flirty_010", target: "midnight text", forbidden: ["phone", "late", "message", "after"] },
+    ],
+  },
+  {
+    id: "pop",
+    label: "Pop Culture",
+    accent: "#34D6B0",
+    cards: [
+      { id: "tiptoe_pop_001", target: "red carpet", forbidden: ["celebrity", "dress", "award", "walk"] },
+      { id: "tiptoe_pop_002", target: "reality TV", forbidden: ["show", "camera", "drama", "contestant"] },
+      { id: "tiptoe_pop_003", target: "viral trend", forbidden: ["internet", "TikTok", "popular", "challenge"] },
+      { id: "tiptoe_pop_004", target: "movie trailer", forbidden: ["film", "preview", "coming", "theater"] },
+      { id: "tiptoe_pop_005", target: "podcast", forbidden: ["listen", "episode", "host", "audio"] },
+      { id: "tiptoe_pop_006", target: "streaming", forbidden: ["watch", "Netflix", "show", "online"] },
+      { id: "tiptoe_pop_007", target: "fan theory", forbidden: ["guess", "plot", "movie", "internet"] },
+      { id: "tiptoe_pop_008", target: "spoiler alert", forbidden: ["ending", "ruin", "secret", "movie"] },
+      { id: "tiptoe_pop_009", target: "theme song", forbidden: ["music", "opening", "show", "lyrics"] },
+      { id: "tiptoe_pop_010", target: "award speech", forbidden: ["thank", "stage", "winner", "trophy"] },
+    ],
+  },
+];
 
 const supabase = hasSupabaseConfig ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 // ---- Content helpers --------------------------------------------------
 function categoryAccent(id) {
-  return CONTENT.categories.find((c) => c.id === id)?.accent || "#34D6B0";
+  return CONTENT.categories.find((c) => c.id === id)?.accent || TIPTOE_PACKS.find((pack) => pack.id === id)?.accent || "#34D6B0";
+}
+
+function categoryLabel(id) {
+  return CONTENT.categories.find((c) => c.id === id)?.label || TIPTOE_PACKS.find((pack) => pack.id === id)?.label || "Mild";
 }
 
 function isAdultCategory(id) {
@@ -100,6 +173,7 @@ function saveDeckHistory(room, kind, history) {
 }
 
 function pickSmartPrompt(room, kind, playerCount = 2) {
+  if (room.game_mode === "tiptoe") return pickTiptoeCard(room);
   const cat = CONTENT.categories.find((c) => c.id === room.category) || CONTENT.categories[0];
   const pool =
     room.game_mode === "questions"
@@ -131,6 +205,50 @@ function pickSmartPrompt(room, kind, playerCount = 2) {
   };
   saveDeckHistory(room, kind, nextHistory);
   return picked;
+}
+
+function pickTiptoeCard(room) {
+  const pack = TIPTOE_PACKS.find((item) => item.id === (room.topic_pack || room.category)) || TIPTOE_PACKS[0];
+  const keyRoom = { ...room, category: pack.id, game_mode: "tiptoe" };
+  const history = loadDeckHistory(keyRoom, "tiptoe");
+  const seenIds = new Set(history.seenIds || []);
+  let eligible = pack.cards.filter((card) => !seenIds.has(card.id));
+  if (!eligible.length) {
+    return {
+      id: `tiptoe_exhausted_${Date.now()}`,
+      text: "This Tiptoe pack is exhausted. Return to the lobby and start a fresh pack before continuing.",
+      exhausted: true,
+      target: "Deck exhausted",
+      forbidden: ["Fresh deck"],
+    };
+  }
+  const picked = pickFromPool(eligible);
+  saveDeckHistory(keyRoom, "tiptoe", { seenIds: [...seenIds, picked.id] });
+  return {
+    ...picked,
+    text: picked.target,
+    pack_id: pack.id,
+    tiptoe: true,
+  };
+}
+
+function roomDisplayMode(room) {
+  if (room.display_mode) return room.display_mode;
+  return room.play_mode === "single_device" ? "pass_play" : "multi_device";
+}
+
+function roomPlayFormat(room) {
+  if (room.game_mode === "tiptoe") return "teams";
+  return room.play_format || "individual";
+}
+
+function isTvMode(room) {
+  const mode = roomDisplayMode(room);
+  return mode === "tv_only" || mode === "tv_phones";
+}
+
+function hostPlayerId(room, players) {
+  return room?.host_player_id || players[0]?.id;
 }
 
 function inviteUrlFor(code, token) {
@@ -274,10 +392,16 @@ function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall, ha
               </Button>
             )}
             <Button accent="#34D6B0" onClick={() => onCreate("single_device")}>
-              Single device
+              Pass & Play
+            </Button>
+            <Button variant="outline" accent="#FFB84D" onClick={() => onCreate("tv_only")}>
+              TV Only
             </Button>
             <Button variant="outline" accent="#E9E7F0" onClick={() => onCreate("multiplayer")}>
-              Multiplayer
+              Multi-Device
+            </Button>
+            <Button variant="outline" accent="#E0529C" onClick={() => onCreate("tv_phones")}>
+              TV + Phones
             </Button>
             <Button variant="outline" accent="#E9E7F0" onClick={() => setMode("join")}>
               Join with a code
@@ -345,17 +469,20 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
   const [playerNames, setPlayerNames] = useState([""]);
   const [gameMode, setGameMode] = useState("truth_dare");
   const [category, setCategory] = useState("mild");
+  const [topicPack, setTopicPack] = useState("party");
+  const [timerSeconds, setTimerSeconds] = useState(TIPTOE_DEFAULT_SECONDS);
+  const [roomLock, setRoomLock] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const needsAgeGate = true;
-  const isSingleDevice = playMode === "single_device";
+  const isSingleDevice = playMode === "single_device" || playMode === "tv_only";
+  const displayLabel = DISPLAY_MODE_OPTIONS.find((option) => option.id === (playMode === "single_device" ? "pass_play" : playMode))?.label || "Multi-Device";
 
   function cleanLocalNames() {
     return [name, ...playerNames]
       .map((item) => cleanDisplayName(item))
       .filter(Boolean)
-      .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
       .slice(0, MAX_PLAYERS);
   }
 
@@ -381,8 +508,13 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
       const localRoom = {
         code,
         play_mode: "single_device",
+        display_mode: playMode === "tv_only" ? "tv_only" : "pass_play",
+        play_format: gameMode === "tiptoe" ? "teams" : "individual",
         game_mode: gameMode,
-        category,
+        category: gameMode === "tiptoe" ? topicPack : category,
+        topic_pack: topicPack,
+        timer_seconds: timerSeconds,
+        room_locked: roomLock,
         status: "lobby",
         current_player_index: 0,
         current_prompt: null,
@@ -402,13 +534,32 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
         if (!existing) break;
         code = randomCode();
       }
-      const { error: roomErr } = await supabase.from("rooms").insert({
+      const roomPayload = {
         code,
+        play_mode: "multiplayer",
+        display_mode: playMode === "tv_phones" ? "tv_phones" : "multi_device",
+        play_format: gameMode === "tiptoe" ? "teams" : "individual",
         game_mode: gameMode,
-        category,
+        category: gameMode === "tiptoe" ? topicPack : category,
+        topic_pack: topicPack,
+        timer_seconds: timerSeconds,
+        room_locked: roomLock,
+        content_schema_version: CONTENT_SCHEMA_VERSION,
         status: "lobby",
         current_player_index: 0,
-      });
+      };
+      let { error: roomErr } = await supabase.from("rooms").insert(roomPayload);
+      if (roomErr) {
+        const legacyPayload = {
+          code,
+          game_mode: gameMode,
+          category: gameMode === "tiptoe" ? topicPack : category,
+          status: "lobby",
+          current_player_index: 0,
+        };
+        const fallback = await supabase.from("rooms").insert(legacyPayload);
+        roomErr = fallback.error;
+      }
       if (roomErr) throw roomErr;
 
       const { data: player, error: playerErr } = await supabase
@@ -430,12 +581,12 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
       <button onClick={onBack} style={backBtn}>← Back</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 28 }}>
         <div>
-          <div style={eyebrow}>{isSingleDevice ? "SINGLE DEVICE" : "MULTIPLAYER"}</div>
-          <h2 style={sectionTitle}>{isSingleDevice ? "Set up the pass-around game" : "Set up the room"}</h2>
+          <div style={eyebrow}>{displayLabel}</div>
+          <h2 style={sectionTitle}>{isSingleDevice ? "Set up the local game" : "Set up the room"}</h2>
         </div>
 
         <Field label={isSingleDevice ? "Host player" : "Your name"} htmlFor="create-name">
-          <TextField id="create-name" value={name} onChange={setName} placeholder="First name" autoFocus maxLength={20} />
+          <TextField id="create-name" value={name} onChange={setName} placeholder="Full name" autoFocus maxLength={32} />
         </Field>
 
         {isSingleDevice && (
@@ -476,18 +627,18 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
           </Field>
         )}
 
-        <Field label="Game mode">
+        <Field label="Game">
           <SegmentedControl
-            options={[
-              { id: "truth_dare", label: "Truth or Dare" },
-              { id: "questions", label: "Questions" },
-            ]}
+            options={GAME_OPTIONS}
             value={gameMode}
-            onChange={setGameMode}
+            onChange={(value) => {
+              setGameMode(value);
+              if (value === "tiptoe") setCategory(topicPack);
+            }}
           />
         </Field>
 
-        <Field label="Category">
+        {gameMode !== "tiptoe" && <Field label="Content vibe">
           <div style={{ display: "flex", gap: 10 }}>
             {CONTENT.categories.map((c) => (
               <CategoryChip
@@ -499,7 +650,46 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
               />
             ))}
           </div>
-        </Field>
+        </Field>}
+
+        {gameMode === "tiptoe" && (
+          <>
+            <Field label="Topic pack">
+              <div style={{ display: "flex", gap: 10 }}>
+                {TIPTOE_PACKS.map((pack) => (
+                  <CategoryChip
+                    key={pack.id}
+                    label={pack.label}
+                    accent={pack.accent}
+                    active={topicPack === pack.id}
+                    onClick={() => {
+                      setTopicPack(pack.id);
+                      setCategory(pack.id);
+                    }}
+                  />
+                ))}
+              </div>
+            </Field>
+            <Field label="Round timer">
+              <SegmentedControl
+                options={[30, 45, 60, 90].map((seconds) => ({ id: String(seconds), label: `${seconds}s` }))}
+                value={String(timerSeconds)}
+                onChange={(value) => setTimerSeconds(Number(value))}
+              />
+            </Field>
+          </>
+        )}
+
+        {!isSingleDevice && (
+          <label style={checkRow}>
+            <input
+              type="checkbox"
+              checked={roomLock}
+              onChange={(event) => setRoomLock(event.target.checked)}
+            />
+            <span>Lock room after start. Late joiners wait for host approval at a safe boundary.</span>
+          </label>
+        )}
 
         {needsAgeGate && (
           <label style={checkRow}>
@@ -521,7 +711,7 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
           disabled={!name.trim() || (isSingleDevice && cleanLocalNames().length < 2) || (needsAgeGate && !ageConfirmed) || busy}
           onClick={handleCreate}
         >
-          {busy ? "Creating..." : isSingleDevice ? "Create single device game" : "Create room"}
+          {busy ? "Creating..." : isSingleDevice ? "Create local game" : "Create room"}
         </Button>
       </div>
     </div>
@@ -578,6 +768,23 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
         setBusy(false);
         return;
       }
+      if (room.room_locked && room.status !== "lobby") {
+        setError("This room is locked during the active round. Ask the host to admit you at the next safe break.");
+        setBusy(false);
+        return;
+      }
+      try {
+        const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || "{}");
+        if (saved?.roomCode === code && saved?.me?.id) {
+          const { data: savedPlayer } = await supabase.from("players").select("*").eq("id", saved.me.id).maybeSingle();
+          if (savedPlayer) {
+            onJoined(code, savedPlayer);
+            return;
+          }
+        }
+      } catch (e) {
+        // Continue with normal join if local persistence is unavailable.
+      }
       let invite = null;
       if (inviteToken) {
         const { data: inviteRow, error: inviteErr } = await supabase
@@ -631,11 +838,6 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
         return;
       }
       const joinName = invite?.invitee_name ? firstNameOnly(invite.invitee_name) : cleanDisplayName(name);
-      if (roster.some((player) => player.name.trim().toLowerCase() === joinName.toLowerCase())) {
-        setError("That name is already in the room. Add an initial or nickname.");
-        setBusy(false);
-        return;
-      }
 
       const nextOrder = roster.length;
       const { data: player, error: playerErr } = await supabase
@@ -707,9 +909,9 @@ function LobbyScreen({
   onTransferHost,
   onAddLocalPlayer,
 }) {
-  const isHost = players.length > 0 && players[0].id === me.id;
+  const isHost = hostPlayerId(room, players) === me.id;
   const isSingleDevice = room.play_mode === "single_device";
-  const cat = CONTENT.categories.find((c) => c.id === room.category);
+  const cat = CONTENT.categories.find((c) => c.id === room.category) || TIPTOE_PACKS.find((pack) => pack.id === (room.topic_pack || room.category)) || CONTENT.categories[0];
   const latestPendingInvite = pendingInvites[0];
   const inviteUrl = inviteUrlFor(room.code, latestPendingInvite?.token);
   const [inviteeName, setInviteeName] = useState("");
@@ -721,7 +923,7 @@ function LobbyScreen({
       <button onClick={onLeave} style={backBtn}>← Leave</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 28 }}>
         <div style={{ textAlign: "center" }}>
-          <div style={eyebrow}>{isSingleDevice ? "SINGLE DEVICE" : "ROOM CODE"}</div>
+          <div style={eyebrow}>{isSingleDevice ? DISPLAY_MODE_OPTIONS.find((option) => option.id === roomDisplayMode(room))?.label : "ROOM CODE"}</div>
           <div style={{ fontSize: 56, fontWeight: 800, fontFamily: "'Sora', sans-serif", letterSpacing: "0.08em", color: cat?.accent }}>
             {isSingleDevice ? "PASS" : room.code}
           </div>
@@ -762,8 +964,10 @@ function LobbyScreen({
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <Pill text={room.game_mode === "questions" ? "Questions" : "Truth or Dare"} />
-          <Pill text={cat?.label} accent={cat?.accent} />
+          <Pill text={GAME_OPTIONS.find((option) => option.id === room.game_mode)?.label || "Truth or Dare"} />
+          <Pill text={room.game_mode === "tiptoe" ? `Pack: ${cat?.label}` : cat?.label} accent={cat?.accent} />
+          <Pill text={DISPLAY_MODE_OPTIONS.find((option) => option.id === roomDisplayMode(room))?.label || "Multi-Device"} />
+          <Pill text={roomPlayFormat(room) === "teams" ? "Teams" : "Individual"} />
         </div>
 
         {isSingleDevice && (
@@ -857,17 +1061,20 @@ function LobbyScreen({
 
         {isHost && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="Game mode">
+            <Field label="Game">
               <SegmentedControl
-                options={[
-                  { id: "truth_dare", label: "Truth or Dare" },
-                  { id: "questions", label: "Questions" },
-                ]}
+                options={GAME_OPTIONS}
                 value={room.game_mode}
-                onChange={(value) => onRoomSettingsChange({ game_mode: value })}
+                onChange={(value) =>
+                  onRoomSettingsChange({
+                    game_mode: value,
+                    play_format: value === "tiptoe" ? "teams" : "individual",
+                    category: value === "tiptoe" ? (room.topic_pack || "party") : "mild",
+                  })
+                }
               />
             </Field>
-            <Field label="Category">
+            {room.game_mode !== "tiptoe" && <Field label="Content vibe">
               <div style={{ display: "flex", gap: 10 }}>
                 {CONTENT.categories.map((c) => (
                   <CategoryChip
@@ -882,17 +1089,60 @@ function LobbyScreen({
                   />
                 ))}
               </div>
+            </Field>}
+            {room.game_mode === "tiptoe" && (
+              <>
+                <Field label="Topic pack">
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {TIPTOE_PACKS.map((pack) => (
+                      <CategoryChip
+                        key={pack.id}
+                        label={pack.label}
+                        accent={pack.accent}
+                        active={(room.topic_pack || room.category) === pack.id}
+                        onClick={() => onRoomSettingsChange({ topic_pack: pack.id, category: pack.id })}
+                      />
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Timer">
+                  <SegmentedControl
+                    options={[30, 45, 60, 90].map((seconds) => ({ id: String(seconds), label: `${seconds}s` }))}
+                    value={String(room.timer_seconds || TIPTOE_DEFAULT_SECONDS)}
+                    onChange={(value) => onRoomSettingsChange({ timer_seconds: Number(value) })}
+                  />
+                </Field>
+              </>
+            )}
+            <Field label="Display mode">
+              <SegmentedControl
+                options={isSingleDevice ? DISPLAY_MODE_OPTIONS.filter((option) => ["pass_play", "tv_only"].includes(option.id)) : DISPLAY_MODE_OPTIONS.filter((option) => ["multi_device", "tv_phones"].includes(option.id))}
+                value={roomDisplayMode(room)}
+                onChange={(value) => onRoomSettingsChange({ display_mode: value })}
+              />
             </Field>
             <label style={checkRow}>
               <input
                 type="checkbox"
-                checked={adultSettingsConfirmed}
-                onChange={(event) => setAdultSettingsConfirmed(event.target.checked)}
+                checked={Boolean(room.room_locked)}
+                onChange={(event) => onRoomSettingsChange({ room_locked: event.target.checked })}
               />
               <span>
-                Unlock 21+ packs. Ask once, accept no, and allow non-alcoholic substitutes.
+                Lock room while playing. Late joiners wait for the next safe boundary.
               </span>
             </label>
+            {room.game_mode !== "tiptoe" && (
+              <label style={checkRow}>
+                <input
+                  type="checkbox"
+                  checked={adultSettingsConfirmed}
+                  onChange={(event) => setAdultSettingsConfirmed(event.target.checked)}
+                />
+                <span>
+                  Unlock 21+ packs. Ask once, accept no, and allow non-alcoholic substitutes.
+                </span>
+              </label>
+            )}
           </div>
         )}
 
@@ -920,6 +1170,7 @@ function GameScreen({
   me,
   online,
   score,
+  tiptoeScore,
   onAction,
   onLeave,
   onInvite,
@@ -933,7 +1184,7 @@ function GameScreen({
   inviteStatus,
   busy,
 }) {
-  const cat = CONTENT.categories.find((c) => c.id === room.category);
+  const cat = CONTENT.categories.find((c) => c.id === room.category) || TIPTOE_PACKS.find((pack) => pack.id === (room.topic_pack || room.category)) || CONTENT.categories[0];
   const isSingleDevice = room.play_mode === "single_device";
   const currentPlayer = players[room.current_player_index % players.length];
   const isMyTurn = isSingleDevice || currentPlayer?.id === me.id;
@@ -941,9 +1192,14 @@ function GameScreen({
   const isPaused = room.status === "paused";
   const isPenalty = room.current_type === "penalty";
   const isPenaltyLike = room.current_type === "penalty" || room.current_type === "consequence";
-  const isHost = players.length > 0 && players[0].id === me.id;
+  const isHost = hostPlayerId(room, players) === me.id;
   const currentPrompt = decodePrompt(room.current_prompt);
   const [flipped, setFlipped] = useState(false);
+  const [tiptoeSecondsLeft, setTiptoeSecondsLeft] = useState(room.timer_seconds || TIPTOE_DEFAULT_SECONDS);
+  const isTiptoe = room.game_mode === "tiptoe";
+  const tvMode = isTvMode(room);
+  const displayModeLabel = DISPLAY_MODE_OPTIONS.find((option) => option.id === roomDisplayMode(room))?.label || "Multi-Device";
+  const currentTeam = isTiptoe ? (room.current_player_index % 2 === 0 ? "Team A" : "Team B") : null;
 
   useEffect(() => {
     setFlipped(false);
@@ -952,6 +1208,18 @@ function GameScreen({
       return () => clearTimeout(t);
     }
   }, [room.current_prompt, room.current_type]);
+
+  useEffect(() => {
+    if (!isTiptoe || isPaused || !hasPrompt) {
+      setTiptoeSecondsLeft(room.timer_seconds || TIPTOE_DEFAULT_SECONDS);
+      return;
+    }
+    setTiptoeSecondsLeft(room.timer_seconds || TIPTOE_DEFAULT_SECONDS);
+    const timer = setInterval(() => {
+      setTiptoeSecondsLeft((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isTiptoe, isPaused, hasPrompt, room.current_prompt, room.timer_seconds]);
 
   const accent = cat?.accent || "#34D6B0";
 
@@ -967,9 +1235,9 @@ function GameScreen({
       </div>
 
       <div style={{ textAlign: "center", marginTop: 0, marginBottom: 4 }}>
-        <Pill text={isSingleDevice ? "Single device" : "Multiplayer"} accent={isSingleDevice ? "#FFB84D" : "#34D6B0"} />
-        <Pill text={room.game_mode === "questions" ? "Questions" : "Truth or Dare"} />
-        <Pill text={cat?.label} accent={accent} style={{ marginLeft: 8 }} />
+        <Pill text={displayModeLabel} accent={isSingleDevice ? "#FFB84D" : "#34D6B0"} />
+        <Pill text={GAME_OPTIONS.find((option) => option.id === room.game_mode)?.label || "Truth or Dare"} />
+        <Pill text={isTiptoe ? `Pack: ${cat?.label}` : cat?.label} accent={accent} style={{ marginLeft: 8 }} />
         {!isSingleDevice && <Pill text={online ? "Connected" : "Offline - reconnecting"} accent={online ? "#34D6B0" : "#FFB84D"} style={{ marginLeft: 8 }} />}
         {isPaused && <Pill text="Paused" accent="#FFB84D" style={{ marginLeft: 8 }} />}
       </div>
@@ -977,13 +1245,18 @@ function GameScreen({
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 28 }}>
         <div style={{ textAlign: "center" }} aria-live="polite">
-          <div style={eyebrow}>{isSingleDevice ? "PASS TO" : isMyTurn ? "YOUR TURN" : "CURRENT TURN"}</div>
+          <div style={eyebrow}>{isTiptoe ? currentTeam : isSingleDevice ? "PASS TO" : isMyTurn ? "YOUR TURN" : "CURRENT TURN"}</div>
           <div style={{ fontSize: 26, fontWeight: 800, fontFamily: "'Sora', sans-serif", color: accent }}>
-            {currentPlayer?.name}
+            {isTiptoe ? `${currentPlayer?.name || "Guesser"} guesses` : currentPlayer?.name}
           </div>
+          {isTiptoe && (
+            <div style={{ ...hintText, marginTop: 8 }}>
+              {tvMode ? "Guesser turns away from the TV." : "Do not show this card to the guesser."}
+            </div>
+          )}
         </div>
 
-        <div style={{ perspective: 1200, width: "100%", maxWidth: 360, height: 300 }} role="region" aria-label="Current prompt card">
+        <div style={{ perspective: 1200, width: "100%", maxWidth: tvMode ? 720 : 380, height: isTiptoe ? (tvMode ? 390 : 340) : 300 }} role="region" aria-label="Current prompt card">
           <div
             style={{
               width: "100%",
@@ -1011,7 +1284,24 @@ function GameScreen({
                 textAlign: "center",
               }}
             >
-              {hasPrompt ? (
+              {hasPrompt && isTiptoe ? (
+                <div>
+                  <div style={{ ...eyebrow, color: accent, marginBottom: 8 }}>TIPTOE TARGET</div>
+                  <div style={{ fontSize: tvMode ? 52 : 34, fontWeight: 800, fontFamily: "'Sora', sans-serif", lineHeight: 1.05, color: "#F8F3E8" }}>
+                    {currentPrompt?.target || promptText(currentPrompt)}
+                  </div>
+                  <div style={{ marginTop: 18, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                    {(currentPrompt?.forbidden || []).map((word) => (
+                      <span key={word} style={{ ...badge, background: "#FF5A4E", color: "#0B0B10", fontSize: 12 }}>
+                        {word}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 20, fontSize: tvMode ? 54 : 42, fontFamily: "'Sora', sans-serif", fontWeight: 800, color: tiptoeSecondsLeft <= 10 ? "#FF5A4E" : "#FFB84D" }}>
+                    {tiptoeSecondsLeft}s
+                  </div>
+                </div>
+              ) : hasPrompt ? (
                 <div>
                   <div style={{ ...eyebrow, color: accent, marginBottom: 10 }}>
                     {room.current_type === "consequence" ? "RIGHT-SIDE CONSEQUENCE" : isPenalty ? "PENALTY" : room.current_type?.toUpperCase()}
@@ -1047,7 +1337,7 @@ function GameScreen({
                 </div>
               ) : (
                 <div style={{ color: "#807C92", fontFamily: "'Manrope', sans-serif", fontSize: 15 }}>
-                  {isPaused ? "Paused. Resume when everyone is ready." : isMyTurn ? "Pick truth or dare below" : "Waiting for their pick..."}
+                  {isPaused ? "Paused. Resume when everyone is ready." : isTiptoe ? "Start the next Tiptoe card" : isMyTurn ? "Pick truth or dare below" : "Waiting for their pick..."}
                 </div>
               )}
             </div>
@@ -1064,6 +1354,19 @@ function GameScreen({
         {isPaused && (
           <Button accent={accent} disabled={busy} onClick={onResumeGame}>Resume game</Button>
         )}
+        {!isPaused && isHost && !hasPrompt && isTiptoe && (
+          <Button accent={accent} disabled={busy} onClick={() => onAction("draw", "tiptoe")}>Start Tiptoe card</Button>
+        )}
+        {!isPaused && isHost && hasPrompt && isTiptoe && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button accent="#34D6B0" disabled={busy} onClick={() => onAction("tiptoe_correct")}>Correct +1</Button>
+              <Button variant="outline" accent="#FFB84D" disabled={busy} onClick={() => onAction("tiptoe_pass")}>Pass 0</Button>
+            </div>
+            <Button variant="outline" accent="#FF5A4E" disabled={busy} onClick={() => onAction("tiptoe_forbidden")}>Forbidden -1</Button>
+            <Button accent={accent} disabled={busy} onClick={() => onAction("next")}>Next team</Button>
+          </div>
+        )}
         {!isPaused && isMyTurn && !hasPrompt && room.game_mode === "truth_dare" && (
           <div style={{ display: "flex", gap: 12 }}>
             <Button accent="#34D6B0" disabled={busy} onClick={() => onAction("draw", "truth")}>Truth</Button>
@@ -1073,7 +1376,7 @@ function GameScreen({
         {!isPaused && isMyTurn && !hasPrompt && room.game_mode === "questions" && (
           <Button accent={accent} disabled={busy} onClick={() => onAction("draw", "question")}>Draw a question</Button>
         )}
-        {!isPaused && isMyTurn && hasPrompt && (
+        {!isPaused && isMyTurn && hasPrompt && !isTiptoe && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {!isPenaltyLike && (
               <Button variant="outline" accent="#FFB84D" disabled={busy} onClick={() => onAction("penalty")}>
@@ -1104,7 +1407,14 @@ function GameScreen({
             </div>
           </div>
         )}
-        {score.length > 0 && (
+        {isTiptoe && (
+          <div style={scorePanel}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>SCORE</div>
+            <div style={scoreRow}><span>Team A</span><span>{tiptoeScore.teamA}</span></div>
+            <div style={scoreRow}><span>Team B</span><span>{tiptoeScore.teamB}</span></div>
+          </div>
+        )}
+        {!isTiptoe && score.length > 0 && (
           <div style={scorePanel}>
             <div style={{ ...eyebrow, marginBottom: 8 }}>PENALTIES</div>
             {score.slice(0, 4).map((entry) => (
@@ -1645,7 +1955,36 @@ export default function App() {
     link.href = "https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@500;600;700;800&display=swap";
     link.rel = "stylesheet";
     document.head.appendChild(link);
+    const style = document.createElement("style");
+    style.textContent = `
+      :focus-visible { outline: 4px solid #FFB84D !important; outline-offset: 4px !important; }
+      button, input { min-height: 44px; }
+      body { margin: 0; background: #07070B; }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+      }
+      @media (orientation: landscape) and (min-width: 760px) {
+        #root > div { max-width: 1180px !important; padding: 42px 72px !important; }
+      }
+    `;
+    document.head.appendChild(style);
   }, []);
+
+  useEffect(() => {
+    let wakeLock = null;
+    async function requestWakeLock() {
+      if (!("wakeLock" in navigator) || view !== "game") return;
+      try {
+        wakeLock = await navigator.wakeLock.request("screen");
+      } catch (e) {
+        // Wake Lock is best-effort across browsers and Android WebViews.
+      }
+    }
+    requestWakeLock();
+    return () => {
+      wakeLock?.release?.();
+    };
+  }, [view]);
 
   // Subscribe to room + players once we have a roomCode
   useEffect(() => {
@@ -1783,6 +2122,16 @@ export default function App() {
   const score = Object.entries(penaltyScore)
     .map(([name, shots]) => ({ name, shots }))
     .sort((a, b) => b.shots - a.shots);
+  const tiptoeScore = activityLog
+    .filter((entry) => entry.type === "tiptoe_score")
+    .reduce(
+      (acc, entry) => {
+        if (entry.team === "Team A") acc.teamA += entry.points;
+        if (entry.team === "Team B") acc.teamB += entry.points;
+        return acc;
+      },
+      { teamA: 0, teamB: 0 },
+    );
 
   function handleRoomCreated(code, player) {
     setMe(player);
@@ -1832,6 +2181,7 @@ export default function App() {
 
   async function handleStart() {
     setRoundPenaltyCounts({});
+    setView("game");
     if (room?.play_mode === "single_device") {
       setRoom((current) => ({
         ...current,
@@ -1839,14 +2189,27 @@ export default function App() {
         current_player_index: 0,
         current_prompt: null,
         current_type: null,
+        session_started_at: new Date().toISOString(),
       }));
-      setView("game");
       return;
     }
-    await supabase
+    const { error } = await supabase
       .from("rooms")
-      .update({ status: "playing", current_player_index: 0, current_prompt: null, current_type: null })
+      .update({
+        status: "playing",
+        current_player_index: 0,
+        current_prompt: null,
+        current_type: null,
+        session_started_at: new Date().toISOString(),
+        content_schema_version: CONTENT_SCHEMA_VERSION,
+      })
       .eq("code", roomCode);
+    if (error) {
+      await supabase
+        .from("rooms")
+        .update({ status: "playing", current_player_index: 0, current_prompt: null, current_type: null })
+        .eq("code", roomCode);
+    }
   }
 
   async function handleEndGame() {
@@ -1923,10 +2286,19 @@ export default function App() {
       }));
       return;
     }
-    await supabase
+    const { error } = await supabase
       .from("rooms")
       .update({ ...nextSettings, current_prompt: null, current_type: null, current_player_index: 0 })
       .eq("code", roomCode);
+    if (error) {
+      const legacySettings = Object.fromEntries(
+        Object.entries(nextSettings).filter(([key]) => ["game_mode", "category"].includes(key)),
+      );
+      await supabase
+        .from("rooms")
+        .update({ ...legacySettings, current_prompt: null, current_type: null, current_player_index: 0 })
+        .eq("code", roomCode);
+    }
   }
 
   async function handleInvite(inviteeName = "") {
@@ -2063,10 +2435,6 @@ export default function App() {
       setInviteStatus(`Single device games support up to ${MAX_PLAYERS} players.`);
       return;
     }
-    if (players.some((player) => player.name.toLowerCase() === name.toLowerCase())) {
-      setInviteStatus("That name is already in the game.");
-      return;
-    }
     setPlayers((items) => [
       ...items,
       {
@@ -2147,6 +2515,19 @@ export default function App() {
         if (action === "draw") {
           const prompt = pickSmartPrompt(room, kind, players.length);
           setRoom((current) => ({ ...current, current_prompt: encodePrompt(prompt), current_type: kind }));
+        } else if (action.startsWith("tiptoe_")) {
+          const points = action === "tiptoe_correct" ? 1 : action === "tiptoe_forbidden" ? -1 : 0;
+          const team = room.current_player_index % 2 === 0 ? "Team A" : "Team B";
+          setActivityLog((entries) => [
+            {
+              type: "tiptoe_score",
+              team,
+              points,
+              card: decodePrompt(room.current_prompt)?.target || promptText(decodePrompt(room.current_prompt)),
+              at: new Date().toISOString(),
+            },
+            ...entries,
+          ].slice(0, 40));
         } else if (action === "penalty") {
           const activePlayer = players[room.current_player_index % players.length];
           const playerId = activePlayer?.id || currentPlayerName();
@@ -2201,11 +2582,31 @@ export default function App() {
         // Only succeeds if the room is still in the state we expect (no prompt drawn yet).
         // Prevents a double-tap from drawing two prompts in a row.
         const prompt = pickSmartPrompt(room, kind, players.length);
-        await supabase
+        const { error } = await supabase
           .from("rooms")
-          .update({ current_prompt: encodePrompt(prompt), current_type: kind })
+          .update({ current_prompt: encodePrompt(prompt), current_type: kind, current_prompt_id: prompt.id || null })
           .eq("code", roomCode)
           .is("current_prompt", null);
+        if (error) {
+          await supabase
+            .from("rooms")
+            .update({ current_prompt: encodePrompt(prompt), current_type: kind })
+            .eq("code", roomCode)
+            .is("current_prompt", null);
+        }
+      } else if (action.startsWith("tiptoe_")) {
+        const points = action === "tiptoe_correct" ? 1 : action === "tiptoe_forbidden" ? -1 : 0;
+        const team = room.current_player_index % 2 === 0 ? "Team A" : "Team B";
+        setActivityLog((entries) => [
+          {
+            type: "tiptoe_score",
+            team,
+            points,
+            card: decodePrompt(room.current_prompt)?.target || promptText(decodePrompt(room.current_prompt)),
+            at: new Date().toISOString(),
+          },
+          ...entries,
+        ].slice(0, 40));
       } else if (action === "penalty") {
         const activePlayer = players[room.current_player_index % players.length];
         const playerId = activePlayer?.id || currentPlayerName();
@@ -2301,8 +2702,8 @@ export default function App() {
     return (
       <HomeScreen
         onCreate={(playMode) => {
-          if (playMode === "multiplayer" && !hasSupabaseConfig) {
-            setInstallStatus("Multiplayer needs Supabase config. Single device works on this phone.");
+          if ((playMode === "multiplayer" || playMode === "tv_phones") && !hasSupabaseConfig) {
+            setInstallStatus("Multi-device rooms need Supabase config. Pass & Play and TV Only work locally.");
             return;
           }
           setSelectedPlayMode(playMode);
@@ -2337,7 +2738,7 @@ export default function App() {
     );
   }
 
-  if (!hasSupabaseConfig && selectedPlayMode !== "single_device") {
+  if (!hasSupabaseConfig && selectedPlayMode !== "single_device" && selectedPlayMode !== "tv_only") {
     return <ConfigScreen />;
   }
 
@@ -2377,6 +2778,7 @@ export default function App() {
         me={me}
         online={online}
         score={score}
+        tiptoeScore={tiptoeScore}
         onAction={handleAction}
         onLeave={handleLeave}
         onInvite={handleInvite}

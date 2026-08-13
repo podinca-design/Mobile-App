@@ -4,10 +4,24 @@
 alter table rooms
   add column if not exists content_schema_version text,
   add column if not exists party_id uuid default gen_random_uuid(),
+  add column if not exists play_mode text default 'multiplayer',
+  add column if not exists display_mode text default 'multi_device',
+  add column if not exists play_format text default 'individual',
+  add column if not exists topic_pack text default 'party',
+  add column if not exists timer_seconds integer default 60,
+  add column if not exists room_locked boolean not null default false,
+  add column if not exists host_player_id uuid,
   add column if not exists turn_counter integer not null default 0,
   add column if not exists session_started_at timestamptz,
   add column if not exists session_duration_minutes integer,
   add column if not exists current_prompt_id text;
+
+alter table players
+  add column if not exists client_session_id text,
+  add column if not exists lifecycle_status text not null default 'active',
+  add column if not exists ready boolean not null default false,
+  add column if not exists team_id text,
+  add column if not exists last_seen_at timestamptz default now();
 
 create table if not exists prompt_history (
   id uuid primary key default gen_random_uuid(),
