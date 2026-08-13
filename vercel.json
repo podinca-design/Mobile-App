@@ -1,23 +1,24 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
     {
       "source": "/download",
-      "destination": "/afterparty-firetv.apk",
+      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
       "permanent": false
     },
     {
       "source": "/download/",
-      "destination": "/afterparty-firetv.apk",
+      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
       "permanent": false
     },
     {
       "source": "/apk",
-      "destination": "/afterparty-firetv.apk",
+      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
       "permanent": false
     },
     {
       "source": "/apk/",
-      "destination": "/afterparty-firetv.apk",
+      "destination": "https://github.com/podinca-design/Mobile-App/releases/latest/download/afterparty-firetv.apk",
       "permanent": false
     }
   ]
