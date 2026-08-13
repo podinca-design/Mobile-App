@@ -1,0 +1,31 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "com.podinca.afterparty"
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "com.podinca.afterparty"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 5
+        versionName "1.1.3"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+def exportReleaseApk = tasks.register("exportReleaseApk", Copy) {
+    from(layout.buildDirectory.dir("outputs/apk/release"))
+    include("*release-unsigned.apk")
+    into(rootProject.file("../release-tooling"))
+    rename { "afterparty-firetv-v1.1.3-shell-unsigned.apk" }
+}
+
+tasks.named("assembleRelease").configure {
+    finalizedBy(exportReleaseApk)
+}
