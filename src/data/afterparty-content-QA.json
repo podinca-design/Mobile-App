@@ -1,0 +1,113 @@
+{
+  "schema_version": "2026-08-12",
+  "source_workbook": "afterparty-content-editor-PRODUCTION-EXPANDED.xlsx",
+  "prompt_count_total": 2350,
+  "counts": {
+    "truth_or_dare": {
+      "mild": {
+        "truth": 125,
+        "dare": 125,
+        "total": 250
+      },
+      "bold": {
+        "truth": 125,
+        "dare": 125,
+        "total": 250
+      },
+      "couples": {
+        "truth": 125,
+        "dare": 125,
+        "total": 250
+      },
+      "spicy": {
+        "truth": 150,
+        "dare": 150,
+        "total": 300
+      },
+      "wild": {
+        "truth": 150,
+        "dare": 150,
+        "total": 300
+      }
+    },
+    "questions": {
+      "mild": {
+        "question": 200,
+        "total": 200
+      },
+      "bold": {
+        "question": 200,
+        "total": 200
+      },
+      "couples": {
+        "question": 200,
+        "total": 200
+      },
+      "spicy": {
+        "question": 200,
+        "total": 200
+      },
+      "wild": {
+        "question": 200,
+        "total": 200
+      }
+    }
+  },
+  "workbook_contract": {
+    "sheet_names": [
+      "README",
+      "Truth_Dare",
+      "Questions_Mode",
+      "Categories",
+      "Rules"
+    ],
+    "truth_dare_range": "A1:T1351",
+    "questions_mode_range": "A1:T1001",
+    "schema_changed": false,
+    "new_rows_source_path": "NEW",
+    "selector_metadata_location": "edit_notes"
+  },
+  "qa": {
+    "normalized_exact_duplicate_prompts": 0,
+    "within_pool_similarity_pairs_over_0_92": 0,
+    "prohibited_repetitive_consent_phrase_hits": {
+      "if the player consents": 0,
+      "if they consent": 0,
+      "only if both agree": 0,
+      "personally consent": 0
+    },
+    "requires_consent_rows_missing_ask_once_only": 0,
+    "requires_consent_rows_missing_refusal_failure_cue": 0,
+    "intensity_band_violations": 0,
+    "formula_reference_errors": 0,
+    "prompt_id_count": 2350,
+    "prompt_ids_unique": true
+  },
+  "intensity_bands": {
+    "mild": [
+      1,
+      2
+    ],
+    "bold": [
+      2,
+      3
+    ],
+    "couples": [
+      2,
+      5
+    ],
+    "spicy": [
+      3,
+      5
+    ],
+    "wild": [
+      4,
+      5
+    ]
+  },
+  "notes": [
+    "Truth_Dare and Questions_Mode are separate game modes and must remain separate during ingestion.",
+    "Do not silently repeat prompts when a party/category pool is exhausted; require an explicit host deck reset.",
+    "edit_notes uses semicolon-delimited tags such as mechanic, family, intensity, pacing, group_min, source."
+  ]
+}

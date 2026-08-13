@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { CONTENT, CONTENT_SCHEMA_VERSION } from "./content.js";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -13,969 +14,7 @@ const MAX_ROUND_SHOT_PENALTIES = 3;
 
 const supabase = hasSupabaseConfig ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-// ---- Content bank ----------------------------------------------------
-const CONTENT = {
-  "globalRules": {
-    "adult_only": true,
-    "minimum_age": "21+",
-    "age_gate_required": true,
-    "content_notice": "This game contains adult-only flirtation, kissing, optional consensual touching, optional consensual clothing removal, optional consensual partial nudity, and alcohol-based penalties. Players must be 21+.",
-    "consent_model": {
-      "core_rule": "Consent must be affirmative, voluntary, specific, and reversible. No player may be pressured, teased, mocked, negotiated with, or asked repeatedly after saying no.",
-      "ask_once_rule": "For any dare involving another player, the active player may ask once. If the other player says yes, the dare may proceed. If the other player says no, hesitates, does not answer clearly, or seems uncomfortable, the active player fails the dare and takes the listed penalty.",
-      "no_penalty_for_saying_no": "The person being asked never receives a penalty for saying no. Only the active player receives the penalty if the dare fails.",
-      "stop_rule": "Any player may stop a dare at any time. Once stopped, the action ends immediately.",
-      "touching_allowed_with_consent": true,
-      "kissing_allowed_with_consent": true,
-      "french_kissing_allowed_with_consent": true,
-      "clothing_removal_allowed_with_consent": true,
-      "partial_nudity_allowed_with_consent": true,
-      "adult_body_exposure_allowed_with_consent": true,
-      "allowed_touch_examples": [
-        "holding hands",
-        "hand massage",
-        "shoulder massage",
-        "back rub over clothing",
-        "arm around shoulder",
-        "knee-to-knee sitting",
-        "slow dance",
-        "lap sitting only if both players clearly consent",
-        "cheek kiss",
-        "neck or shoulder kiss",
-        "regular kiss",
-        "French kiss only if both players clearly consent"
-      ],
-      "allowed_clothing_examples": [
-        "swap an accessory",
-        "swap outerwear",
-        "remove a jacket",
-        "remove a shirt only if the player personally consents",
-        "remove a bra only if the player personally consents",
-        "wear another consenting player's outerwear or accessory for one round"
-      ],
-      "allowed_body_reveal_examples": [
-        "show shoulder",
-        "show arm",
-        "show back",
-        "show stomach or midriff",
-        "show leg",
-        "show tattoo",
-        "show chest or nipple only if the player personally consents and the setting is private 21+ adults-only"
-      ],
-      "hard_limits": [
-        "No minors or minor-coded content.",
-        "No sexual acts.",
-        "No explicit sexual instructions.",
-        "No forced touching.",
-        "No forced kissing.",
-        "No forced nudity or exposure.",
-        "No repeated asking after no.",
-        "No recording, photographing, livestreaming, or posting without explicit consent from every visible person.",
-        "No public exposure.",
-        "No humiliation, degradation, or targeting protected traits.",
-        "No unsafe drinking escalation.",
-        "No penalties for a person who refuses to participate in someone else's dare."
-      ]
-    },
-    "penalty_tracking": {
-      "enabled": true,
-      "penalty_unit": "shots",
-      "max_normal_penalties_per_player_per_round": 3,
-      "penalty_count_logic": [
-        "Increment a player's penalty count only when that player refuses a dare or fails a consent-based dare as the active player.",
-        "Do not increment penalty count for a player who says no to being touched, kissed, danced with, involved in exposure, involved in clothing swap, or involved in another player's dare.",
-        "Reset all penalty counters at the start of each new round."
-      ],
-      "on_fourth_penalty": {
-        "trigger": "If the same player would receive a 4th shot penalty in the same round.",
-        "instead_of_shots": true,
-        "label": "Right-Side Consequence",
-        "assigned_by": "player_to_the_right",
-        "display_text": "You have reached 3 penalties this round. The player to your right now assigns a consent-safe consequence.",
-        "rules": [
-          "No additional alcohol escalation.",
-          "No forced touching.",
-          "No forced kissing.",
-          "No forced nudity or exposure.",
-          "No recording or posting.",
-          "No humiliating, unsafe, or degrading consequence.",
-          "The player may still pass on anything unsafe or inappropriate."
-        ],
-        "safe_consequence_examples": [
-          "Answer any Wild truth chosen by the player to the right.",
-          "Answer any Spicy question chosen by the player to the right.",
-          "Do a 20-second dramatic runway walk.",
-          "Let the group choose your nickname for the next round.",
-          "Give a sincere compliment to three players.",
-          "Perform a 20-second karaoke chorus.",
-          "Let the player to the right choose your next category.",
-          "Do your best fake movie trailer voice for the next prompt."
-        ]
-      }
-    },
-    "shot_safety": {
-      "non_alcoholic_substitution_allowed": true,
-      "substitution_text": "Players may substitute water, soda, juice, or any non-alcoholic drink at any time.",
-      "stop_rule": "If a player appears intoxicated, penalties convert to non-alcoholic or non-drinking consequences."
-    }
-  },
-  "categories": [
-    {
-      "id": "mild",
-      "label": "Mild",
-      "accent": "#34D6B0",
-      "truths": [
-        "What's the most embarrassing thing in your search history?",
-        "Who was your first celebrity crush?",
-        "What's a lie you told that you never got caught for?",
-        "What's the weirdest thing you've ever eaten?",
-        "What app do you spend the most time on?",
-        "What's your most useless talent?",
-        "What's the last thing you Googled?",
-        "What's your worst habit?",
-        "What's a rumor you've heard about yourself?",
-        "What's the cringiest thing you did as a teenager?"
-      ],
-      "dares": [
-        "Talk in an accent for the next 3 rounds.",
-        "Let the group post anything on your story.",
-        "Do your best impression of someone in the room.",
-        "Send a voice memo singing the chorus of your favorite song.",
-        "Let someone else answer your next 3 texts.",
-        "Do 10 jumping jacks right now.",
-        "Speak only in questions until your next turn.",
-        "Show the group your camera roll's 5th most recent photo.",
-        "Let the group pick your profile picture for a day.",
-        "Do your best catwalk across the room."
-      ]
-    },
-    {
-      "id": "bold",
-      "label": "Bold",
-      "accent": "#FF5A4E",
-      "truths": [
-        "Who here would you flirt with if you knew they were into it?",
-        "What is your biggest green flag when you like someone?",
-        "What is your most obvious tell when you are attracted to someone?",
-        "Who here makes you the most curious?",
-        "What compliment gets under your skin in a good way?",
-        "What is your type, even if you pretend you do not have one?",
-        "What is a crush behavior you are guilty of?",
-        "What is one thing someone can do that instantly gets your attention?"
-      ],
-      "dares": [
-        "Let the group go through your texts for 30 seconds.",
-        "Call a friend and tell them you love them, no context.",
-        "Do an embarrassing dance for 30 seconds.",
-        "Let someone draw on your face with a marker.",
-        "Reveal the last thing you searched on your phone.",
-        "Prank call someone in your contacts.",
-        "Let the group rename you in their phone for a week.",
-        "Eat something the group picks for you, no questions asked."
-      ]
-    },
-    {
-      "id": "couples",
-      "label": "Couples / Flirty",
-      "accent": "#E0529C",
-      "truths": [
-        "What was your first impression of me, really?",
-        "What's a small thing I do that you secretly love?",
-        "What's the most attracted you've ever been to me?",
-        "What's a fantasy date you've never told me about?",
-        "What's one thing you find irresistible in a partner?",
-        "What's the moment you knew you were falling for me?",
-        "What's something flirty you've always wanted to say to me but haven't?",
-        "What's a memory of us that gives you butterflies?",
-        {
-          "id": "couples_private_truth_001",
-          "text": "What is one touch from your partner that gets your attention immediately?",
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_truth_002",
-          "text": "What is one part of your partner's body you love more than they realize?",
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_truth_003",
-          "text": "What is one private compliment you should say to your partner more often?",
-          "intensity": 3
-        },
-        {
-          "id": "couples_private_truth_004",
-          "text": "What is one thing your partner wears that makes it hard to focus?",
-          "intensity": 3
-        },
-        {
-          "id": "couples_private_truth_005",
-          "text": "What is one adult-only private mood you would like to create together?",
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_truth_006",
-          "text": "What is one thing your partner does that makes you feel wanted?",
-          "intensity": 3
-        },
-        {
-          "id": "couples_private_truth_007",
-          "text": "What is one kiss you still remember?",
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_truth_008",
-          "text": "What is one way your partner could flirt with you more often?",
-          "intensity": 3
-        },
-        {
-          "id": "couples_private_truth_009",
-          "text": "What is one thing you want to be more confident asking your partner for?",
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_truth_010",
-          "text": "What is one thing your partner does really well but does not hear enough?",
-          "intensity": 3
-        }
-      ],
-      "dares": [
-        "Whisper the nicest thing you've ever thought about me.",
-        "Give me a slow, lingering hug for 20 seconds.",
-        "Write a flirty one-line text and send it to me right now.",
-        "Hold eye contact with me for 30 seconds without laughing.",
-        "Describe your perfect date with me in 3 sentences.",
-        "Give me a compliment you've never said out loud before.",
-        "Slow dance with me for 30 seconds, no music needed.",
-        "Tell me your favorite thing about how we kiss.",
-        {
-          "id": "couples_private_dare_001",
-          "text": "Ask your partner if you may kiss them like you are trying to restart the night. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_dare_002",
-          "text": "Ask your partner if you may French kiss them for 10 seconds. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "french_kiss": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "couples_private_dare_003",
-          "text": "Ask your partner if you may kiss their neck or shoulder for 10 seconds. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "couples_private_dare_004",
-          "text": "Swap one clothing item, outerwear item, or accessory with your partner for one round, only if both agree.",
-          "requires_consent": true,
-          "clothing_swap": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_dare_005",
-          "text": "Ask your partner if you may place your hand on their knee or waist for the next prompt. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_dare_006",
-          "text": "Show your partner one body area you personally consent to show in this private 21+ setting. You control what is shown.",
-          "requires_self_consent": true,
-          "adult_body_reveal": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "couples_private_dare_007",
-          "text": "Ask your partner if they will slow dance with you for 30 seconds. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 1,
-            "text": "Take 1 shot."
-          },
-          "intensity": 3
-        },
-        {
-          "id": "couples_private_dare_008",
-          "text": "Remove one clothing item you personally consent to remove for one round. You choose the item. No one else may choose for you.",
-          "requires_self_consent": true,
-          "clothing_removal": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "couples_private_dare_009",
-          "text": "Tell your partner one thing you want more of later, keeping it non-graphic.",
-          "requires_consent": false,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "couples_private_dare_010",
-          "text": "Ask your partner if you may kiss them somewhere they choose. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        }
-      ]
-    },
-    {
-      "id": "spicy",
-      "label": "Spicy 21+",
-      "accent": "#D946EF",
-      "description": "Adult 21+ flirtation, kissing, optional consensual touch, optional consensual clothing removal, and optional consensual partial nudity.",
-      "adultOnly": true,
-      "truths": [
-        {
-          "id": "spicy_truth_001",
-          "text": "What kind of touch gives you butterflies?",
-          "intensity": 3
-        },
-        {
-          "id": "spicy_truth_002",
-          "text": "What body feature do you notice first?",
-          "intensity": 3
-        },
-        {
-          "id": "spicy_truth_003",
-          "text": "What makes a kiss unforgettable?",
-          "intensity": 4
-        },
-        {
-          "id": "spicy_truth_004",
-          "text": "What outfit gets your attention fastest?",
-          "intensity": 3
-        },
-        {
-          "id": "spicy_truth_005",
-          "text": "What flirty move works on you every time?",
-          "intensity": 3
-        },
-        {
-          "id": "spicy_truth_006",
-          "text": "What compliment would make you blush?",
-          "intensity": 4
-        },
-        {
-          "id": "spicy_truth_007",
-          "text": "What is your favorite kind of chemistry?",
-          "intensity": 4
-        },
-        {
-          "id": "spicy_truth_008",
-          "text": "What makes someone hard to resist?",
-          "intensity": 4
-        },
-        {
-          "id": "spicy_truth_009",
-          "text": "What part of yourself are you most confident about?",
-          "intensity": 3
-        },
-        {
-          "id": "spicy_truth_010",
-          "text": "Tell a sexual fantasy or desire you have yet to fulfill?",
-          "intensity": 4
-        }
-      ],
-      "dares": [
-        {
-          "id": "spicy_dare_001",
-          "text": "Convince the player  to your left to remove one article of clothing(no accessories or outwear). Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 1,
-            "text": "Take 1 shot."
-          },
-          "intensity": 2
-        },
-        {
-          "id": "spicy_dare_002",
-          "text": "Ask one player if you may give them a slow 15-second shoulder or upper-back massage over clothing. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "spicy_dare_003",
-          "text": "Ask one player if they will swap an accessory or outerwear item with you for one round. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "clothing_swap": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 3
-        },
-        {
-          "id": "spicy_dare_004",
-          "text": "Ask one player if they will slow dance close with you for 30 seconds. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "spicy_dare_005",
-          "text": "Show one body area you personally consent to show in this private 21+ setting. You control what is shown. No one else may choose for you.",
-          "requires_self_consent": true,
-          "adult_body_reveal": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "spicy_dare_006",
-          "text": "Ask one player if they will sit knee-to-knee with you and hold eye contact for 20 seconds. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "spicy_dare_007",
-          "text": "Remove one clothing item you personally consent to remove for one round. You choose the item. No one else may choose for you.",
-          "requires_self_consent": true,
-          "clothing_removal": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "spicy_dare_008",
-          "text": "Ask one player if you may kiss them for 10 seconds. They choose the style if they consent. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "spicy_dare_009",
-          "text": "Ask one player if they would consent to a French kiss. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "french_kiss": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "spicy_dare_010",
-          "text": "Allow one player to kiss your 'favorite erotic' area for 15 seconds. If they refuse you fail. If you refuse you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "spicy_dare_011",
-          "text": "Ask one player if they will choose one accessory or outerwear item for you to remove or wear for one round. Ask once only. If they say no, you fail the dare. You may refuse any item choice that feels uncomfortable.",
-          "requires_consent": true,
-          "clothing_swap": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "spicy_dare_012",
-          "text": "Ask one player if they will kiss you on the cheek, neck, or shoulder for 5 seconds. They choose the option if they consent. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        }
-      ]
-    },
-    {
-      "id": "wild",
-      "label": "Wild 21+",
-      "accent": "#FFB84D",
-      "description": "Bold, chaotic, adult 21+ party prompts with consent checks, kissing, clothing swaps, optional body reveal, and shot penalties.",
-      "adultOnly": true,
-      "truths": [
-        {
-          "id": "wild_truth_001",
-          "text": "Who here looks like trouble in the best way?",
-          "intensity": 2
-        },
-        {
-          "id": "wild_truth_002",
-          "text": "Who here would you trust with a secret and a bad idea?",
-          "intensity": 2
-        },
-        {
-          "id": "wild_truth_003",
-          "text": "What is your most dangerous flirting habit?",
-          "intensity": 3
-        },
-        {
-          "id": "wild_truth_004",
-          "text": "What outfit makes you feel unstoppable?",
-          "intensity": 2
-        },
-        {
-          "id": "wild_truth_005",
-          "text": "Who here would be the best bad influence?",
-          "intensity": 2
-        },
-        {
-          "id": "wild_truth_006",
-          "text": "What is the boldest compliment you would actually say out loud?",
-          "intensity": 3
-        },
-        {
-          "id": "wild_truth_007",
-          "text": "What is your most chaotic dating opinion?",
-          "intensity": 3
-        },
-        {
-          "id": "wild_truth_008",
-          "text": "What do people underestimate about your wild side?",
-          "intensity": 3
-        },
-        {
-          "id": "wild_truth_009",
-          "text": "What is your most harmless red flag?",
-          "intensity": 2
-        },
-        {
-          "id": "wild_truth_010",
-          "text": "Who here gives main character energy tonight?",
-          "intensity": 2
-        }
-      ],
-      "dares": [
-        {
-          "id": "wild_dare_001",
-          "text": "Ask one player if they will swap an accessory, outerwear item, or one consent-safe clothing item with you for one round. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "clothing_swap": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "wild_dare_002",
-          "text": "Show your best runway walk using the room as your stage.",
-          "requires_consent": false,
-          "penalty": {
-            "type": "shots",
-            "count": 1,
-            "text": "Take 1 shot."
-          },
-          "intensity": 2
-        },
-        {
-          "id": "wild_dare_003",
-          "text": "Ask one player if they will slow dance close with you for 20 seconds. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "wild_dare_004",
-          "text": "Remove one clothing item you personally consent to remove for one round. You choose the item. No one else may choose for you.",
-          "requires_self_consent": true,
-          "clothing_removal": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "wild_dare_005",
-          "text": "Ask one player if you may kiss them for 10 seconds. They choose the style if they consent. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "wild_dare_006",
-          "text": "Show one body area that the person to your right chooses?",
-          "requires_self_consent": true,
-          "adult_body_reveal": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "wild_dare_007",
-          "text": "Demonstrate Falacio or cungilingus on the player of your choice using their finger as your demonstration area.",
-          "requires_consent": true,
-          "penalty": {
-            "type": "shots",
-            "count": 2,
-            "text": "Take 2 shots."
-          },
-          "intensity": 4
-        },
-        {
-          "id": "wild_dare_008",
-          "text": "Let the group create your fake dating app headline and read it like you believe every word.",
-          "requires_consent": false,
-          "penalty": {
-            "type": "shots",
-            "count": 1,
-            "text": "Take 1 shot."
-          },
-          "intensity": 2
-        },
-        {
-          "id": "wild_dare_009",
-          "text": "Ask one player if they will French kiss you. Ask once only. If they say no, you fail the dare.",
-          "requires_consent": true,
-          "kissing": true,
-          "french_kiss": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        },
-        {
-          "id": "wild_dare_010",
-          "text": "Ask one player if they will choose one consent-safe clothing item, outerwear item, or accessory for you to remove or wear for one round. Ask once only. If they say no, you fail the dare. You may refuse any choice that feels uncomfortable.",
-          "requires_consent": true,
-          "clothing_swap": true,
-          "clothing_removal": true,
-          "penalty": {
-            "type": "shots",
-            "count": 3,
-            "text": "Take 3 shots."
-          },
-          "intensity": 5
-        }
-      ]
-    }
-  ],
-  "questionsMode": {
-    "mild": [
-      "What's a small thing that instantly improves your day?",
-      "What's a skill you wish you had?",
-      "What's the best advice you've ever received?",
-      "What's a place you've never been but really want to visit?",
-      "What's your go-to comfort food?",
-      "What's a memory that always makes you smile?",
-      "What's something you're proud of that most people don't know about?",
-      "If you could have dinner with anyone, living or dead, who would it be?"
-    ],
-    "bold": [
-      {
-        "id": "bold_question_001",
-        "text": "Who here is closest to your type?",
-        "intensity": 3
-      },
-      {
-        "id": "bold_question_002",
-        "text": "What makes you catch feelings fast?",
-        "intensity": 3
-      },
-      {
-        "id": "bold_question_003",
-        "text": "What is your biggest flirt weakness?",
-        "intensity": 3
-      },
-      {
-        "id": "bold_question_004",
-        "text": "What is your favorite kind of attention?",
-        "intensity": 2
-      },
-      {
-        "id": "bold_question_005",
-        "text": "What makes someone instantly more attractive?",
-        "intensity": 2
-      },
-      {
-        "id": "bold_question_006",
-        "text": "What is your soft spot?",
-        "intensity": 3
-      },
-      {
-        "id": "bold_question_007",
-        "text": "What is your most obvious crush sign?",
-        "intensity": 2
-      },
-      {
-        "id": "bold_question_008",
-        "text": "What compliment always works on you?",
-        "intensity": 2
-      },
-      {
-        "id": "bold_question_009",
-        "text": "What do you pretend not to like, but secretly do?",
-        "intensity": 3
-      },
-      {
-        "id": "bold_question_010",
-        "text": "What makes you nervous in a good way?",
-        "intensity": 3
-      }
-    ],
-    "couples": [
-      "What's your favorite memory of us so far?",
-      "What made you realize you wanted to be with me?",
-      "What's something about our relationship you're most grateful for?",
-      "What's a dream you have for our future together?",
-      "What's something I do that makes you feel most loved?",
-      "What's a little quirk of mine that you secretly adore?"
-    ],
-    "wild": [
-      {
-        "id": "wild_question_001",
-        "text": "Who here would you text after midnight?",
-        "intensity": 3
-      },
-      {
-        "id": "wild_question_002",
-        "text": "Who here looks like a bad decision?",
-        "intensity": 3
-      },
-      {
-        "id": "wild_question_003",
-        "text": "What is your chaos type?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_004",
-        "text": "What red flag do you find a little attractive?",
-        "intensity": 3
-      },
-      {
-        "id": "wild_question_005",
-        "text": "Who here has the best flirt energy?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_006",
-        "text": "What is your most charming bad habit?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_007",
-        "text": "What is your favorite kind of trouble?",
-        "intensity": 3
-      },
-      {
-        "id": "wild_question_008",
-        "text": "Who here would get you into trouble fastest?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_009",
-        "text": "What would you confess after two drinks?",
-        "intensity": 3
-      },
-      {
-        "id": "wild_question_010",
-        "text": "What bad idea still sounds fun?",
-        "intensity": 3
-      },
-      {
-        "id": "wild_question_011",
-        "text": "Who here would survive a dating show?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_012",
-        "text": "What makes a party instantly better?",
-        "intensity": 1
-      },
-      {
-        "id": "wild_question_013",
-        "text": "Who here has dangerous eye contact?",
-        "intensity": 3
-      },
-      {
-        "id": "wild_question_014",
-        "text": "What compliment makes you fold?",
-        "intensity": 2
-      },
-      {
-        "id": "wild_question_015",
-        "text": "What is your guilty flirt move?",
-        "intensity": 2
-      }
-    ],
-    "spicy": [
-      {
-        "id": "spicy_question_001",
-        "text": "What was your best kiss like?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_002",
-        "text": "What past experience made you more confident?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_003",
-        "text": "What are you shy about until chemistry kicks in?",
-        "intensity": 3
-      },
-      {
-        "id": "spicy_question_004",
-        "text": "What makes intimacy feel safe?",
-        "intensity": 3
-      },
-      {
-        "id": "spicy_question_005",
-        "text": "What boundary matters most to you?",
-        "intensity": 2
-      },
-      {
-        "id": "spicy_question_006",
-        "text": "What kind of attraction surprises you?",
-        "intensity": 3
-      },
-      {
-        "id": "spicy_question_007",
-        "text": "What kiss do you still remember?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_008",
-        "text": "What did an ex or old crush teach you?",
-        "intensity": 3
-      },
-      {
-        "id": "spicy_question_009",
-        "text": "What makes chemistry feel real?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_010",
-        "text": "What private compliment stayed with you?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_011",
-        "text": "What turns you on emotionally?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_012",
-        "text": "What is your biggest intimacy green flag?",
-        "intensity": 3
-      },
-      {
-        "id": "spicy_question_013",
-        "text": "What memory still makes you smile?",
-        "intensity": 4
-      },
-      {
-        "id": "spicy_question_014",
-        "text": "What made you better at saying what you want?",
-        "intensity": 3
-      },
-      {
-        "id": "spicy_question_015",
-        "text": "What spicy truth is more emotional than physical?",
-        "intensity": 4
-      }
-    ]
-  }
-};
-
+// ---- Content helpers --------------------------------------------------
 function categoryAccent(id) {
   return CONTENT.categories.find((c) => c.id === id)?.accent || "#34D6B0";
 }
@@ -1028,14 +67,70 @@ function localId(prefix = "local") {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function firstNameOnly(value) {
-  return String(value || "").replace(/\s+/g, "").slice(0, 24);
+function cleanDisplayName(value, maxLength = 32) {
+  return String(value || "")
+    .normalize("NFC")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
 }
 
-function pickTruthOrDare(room, kind) {
+function firstNameOnly(value) {
+  return cleanDisplayName(value).split(" ")[0]?.slice(0, 24) || "";
+}
+
+function buildDeckKey(room, kind) {
+  return `${room.play_mode || "multiplayer"}:${room.code || room.category}:${room.game_mode}:${room.category}:${kind}:v${CONTENT_SCHEMA_VERSION}`;
+}
+
+function loadDeckHistory(room, kind) {
+  try {
+    return JSON.parse(localStorage.getItem(`td_deck_${buildDeckKey(room, kind)}`) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveDeckHistory(room, kind, history) {
+  try {
+    localStorage.setItem(`td_deck_${buildDeckKey(room, kind)}`, JSON.stringify(history));
+  } catch (e) {
+    // Local storage supplements Supabase state; failure should not block play.
+  }
+}
+
+function pickSmartPrompt(room, kind, playerCount = 2) {
   const cat = CONTENT.categories.find((c) => c.id === room.category) || CONTENT.categories[0];
-  const pool = kind === "truth" ? cat.truths : cat.dares;
-  return pickFromPool(pool);
+  const pool =
+    room.game_mode === "questions"
+      ? CONTENT.questionsMode[room.category] || CONTENT.questionsMode.mild
+      : kind === "truth"
+        ? cat.truths
+        : cat.dares;
+  const available = pool.filter((prompt) => (prompt.group_min || 2) <= playerCount);
+  const history = loadDeckHistory(room, kind);
+  const seenIds = new Set(history.seenIds || []);
+  const recentMechanics = new Set((history.recentMechanics || []).slice(0, 3));
+  const recentFamilies = new Set((history.recentFamilies || []).slice(0, 4));
+  let eligible = available.filter((prompt) => !seenIds.has(prompt.id));
+  if (!eligible.length) {
+    return {
+      id: `deck_exhausted_${Date.now()}`,
+      text: "This deck is exhausted. Return to the lobby or start a fresh deck before continuing.",
+      exhausted: true,
+      intensity: 1,
+    };
+  }
+  const spaced = eligible.filter((prompt) => !recentMechanics.has(prompt.mechanic) && !recentFamilies.has(prompt.family));
+  if (spaced.length) eligible = spaced;
+  const picked = pickFromPool(eligible);
+  const nextHistory = {
+    seenIds: [...seenIds, picked.id],
+    recentMechanics: [picked.mechanic, ...(history.recentMechanics || [])].filter(Boolean).slice(0, 8),
+    recentFamilies: [picked.family, ...(history.recentFamilies || [])].filter(Boolean).slice(0, 10),
+  };
+  saveDeckHistory(room, kind, nextHistory);
+  return picked;
 }
 
 function inviteUrlFor(code, token) {
@@ -1258,7 +353,7 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
 
   function cleanLocalNames() {
     return [name, ...playerNames]
-      .map((item) => firstNameOnly(item))
+      .map((item) => cleanDisplayName(item))
       .filter(Boolean)
       .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
       .slice(0, MAX_PLAYERS);
@@ -1535,7 +630,7 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
         setBusy(false);
         return;
       }
-      const joinName = invite?.invitee_name ? firstNameOnly(invite.invitee_name) : firstNameOnly(name);
+      const joinName = invite?.invitee_name ? firstNameOnly(invite.invitee_name) : cleanDisplayName(name);
       if (roster.some((player) => player.name.trim().toLowerCase() === joinName.toLowerCase())) {
         setError("That name is already in the room. Add an initial or nickname.");
         setBusy(false);
@@ -1683,7 +778,7 @@ function LobbyScreen({
             <button
               type="button"
               style={miniBtn}
-              disabled={!firstNameOnly(localPlayerName) || players.length >= MAX_PLAYERS}
+              disabled={!cleanDisplayName(localPlayerName) || players.length >= MAX_PLAYERS}
               onClick={() => {
                 onAddLocalPlayer(localPlayerName);
                 setLocalPlayerName("");
@@ -1697,7 +792,7 @@ function LobbyScreen({
         {!isSingleDevice && isHost && (
           <TextField
             value={inviteeName}
-            onChange={(value) => setInviteeName(firstNameOnly(value))}
+            onChange={(value) => setInviteeName(cleanDisplayName(value, 32))}
             placeholder="Invitee name"
             maxLength={24}
             ariaLabel="Invitee name"
@@ -1707,7 +802,7 @@ function LobbyScreen({
           <>
             <Button
               variant="ghost"
-              disabled={isHost && !firstNameOnly(inviteeName)}
+              disabled={isHost && !cleanDisplayName(inviteeName)}
               onClick={() => {
                 onInvite(inviteeName);
                 setInviteeName("");
@@ -2841,9 +1936,9 @@ export default function App() {
     }
     if (!roomCode) return;
     let token = randomInviteToken();
-    let label = firstNameOnly(inviteeName);
+    let label = cleanDisplayName(inviteeName);
     if (!label) {
-      label = firstNameOnly(window.prompt("Invitee first name") || "");
+      label = cleanDisplayName(window.prompt("Invitee name") || "");
     }
     if (!label) {
       setInviteStatus("Enter an invitee first name before creating an invite.");
@@ -2962,7 +2057,7 @@ export default function App() {
 
   function handleAddLocalPlayer(playerName) {
     if (room?.play_mode !== "single_device") return;
-    const name = firstNameOnly(playerName);
+    const name = cleanDisplayName(playerName);
     if (!name) return;
     if (players.length >= MAX_PLAYERS) {
       setInviteStatus(`Single device games support up to ${MAX_PLAYERS} players.`);
@@ -3050,7 +2145,7 @@ export default function App() {
     try {
       if (room?.play_mode === "single_device") {
         if (action === "draw") {
-          const prompt = room.game_mode === "questions" ? pickTruthOrDareForQuestions() : pickTruthOrDare(room, kind);
+          const prompt = pickSmartPrompt(room, kind, players.length);
           setRoom((current) => ({ ...current, current_prompt: encodePrompt(prompt), current_type: kind }));
         } else if (action === "penalty") {
           const activePlayer = players[room.current_player_index % players.length];
@@ -3105,7 +2200,7 @@ export default function App() {
       if (action === "draw") {
         // Only succeeds if the room is still in the state we expect (no prompt drawn yet).
         // Prevents a double-tap from drawing two prompts in a row.
-        const prompt = room.game_mode === "questions" ? pickTruthOrDareForQuestions() : pickTruthOrDare(room, kind);
+        const prompt = pickSmartPrompt(room, kind, players.length);
         await supabase
           .from("rooms")
           .update({ current_prompt: encodePrompt(prompt), current_type: kind })
@@ -3163,11 +2258,6 @@ export default function App() {
     } finally {
       setActionInFlight(false);
     }
-  }
-
-  function pickTruthOrDareForQuestions() {
-    const pool = CONTENT.questionsMode[room.category] || CONTENT.questionsMode.mild;
-    return pickFromPool(pool);
   }
 
   function currentPlayerName() {
