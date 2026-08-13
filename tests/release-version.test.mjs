@@ -7,11 +7,11 @@ const gradle = fs.readFileSync(new URL("../android/app/build.gradle", import.met
 const release = JSON.parse(fs.readFileSync(new URL("../public/release.json", import.meta.url), "utf8"));
 
 test("release provenance is internally consistent", () => {
-  assert.equal(pkg.version, "1.1.2");
-  assert.match(gradle, /versionName\s+"1\.1\.2"/);
-  assert.match(gradle, /versionCode\s+4\b/);
-  assert.equal(release.version, "1.1.2");
-  assert.equal(release.androidVersionCode, 4);
+  assert.equal(pkg.version, "1.1.3");
+  assert.match(gradle, /versionName\s+"1\.1\.3"/);
+  assert.match(gradle, /versionCode\s+5\b/);
+  assert.equal(release.version, "1.1.3");
+  assert.equal(release.androidVersionCode, 5);
   assert.deepEqual(release.requiredSetupFlow.slice(0, 5), [
     "game",
     "play_format",
