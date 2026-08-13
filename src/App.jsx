@@ -261,6 +261,28 @@ function focusElement(id) {
   window.setTimeout(() => document.getElementById(id)?.focus(), 80);
 }
 
+function playBuzzer() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    const osc = ctx.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(140, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(70, ctx.currentTime + 0.28);
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.34);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.36);
+  } catch (e) {
+    // Audio feedback is best-effort on TV browsers/WebViews.
+  }
+}
+
 function inviteUrlFor(code, token) {
   const url = new URL(window.location.href);
   url.search = "";
@@ -1470,9 +1492,9 @@ function GameScreen({
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", gap: 10 }}>
               <Button accent="#34D6B0" disabled={busy} onClick={() => onAction("tiptoe_correct")}>Correct +1</Button>
-              <Button variant="outline" accent="#FFB84D" disabled={busy} onClick={() => onAction("tiptoe_pass")}>Pass 0</Button>
+              <Button variant="outline" accent="#FFB84D" disabled={busy} onClick={() => onAction("tiptoe_pass")}>Incorrect / Pass 0</Button>
             </div>
-            <Button variant="outline" accent="#FF5A4E" disabled={busy} onClick={() => onAction("tiptoe_forbidden")}>Forbidden -1</Button>
+            <Button variant="outline" accent="#FF5A4E" disabled={busy} onClick={() => onAction("tiptoe_forbidden")}>Buzzer - forbidden word</Button>
             <Button accent={accent} disabled={busy} onClick={() => onAction("next")}>Next team</Button>
           </div>
         )}
@@ -1516,7 +1538,7 @@ function GameScreen({
             </div>
           </div>
         )}
-        {isTiptoe && (
+        {isTiptoe && !hasPrompt && (
           <div style={scorePanel}>
             <div style={{ ...eyebrow, marginBottom: 8 }}>SCORE</div>
             <div style={scoreRow}><span>Team A</span><span>{tiptoeScore.teamA}</span></div>
@@ -2635,16 +2657,24 @@ export default function App() {
         } else if (action.startsWith("tiptoe_")) {
           const points = action === "tiptoe_correct" ? 1 : action === "tiptoe_forbidden" ? -1 : 0;
           const team = room.current_player_index % 2 === 0 ? "Team A" : "Team B";
+          if (action === "tiptoe_forbidden") playBuzzer();
+          const nextPrompt = pickSmartPrompt(room, "tiptoe", players.length);
           setActivityLog((entries) => [
             {
               type: "tiptoe_score",
               team,
               points,
+              result: action.replace("tiptoe_", ""),
               card: decodePrompt(room.current_prompt)?.target || promptText(decodePrompt(room.current_prompt)),
               at: new Date().toISOString(),
             },
             ...entries,
           ].slice(0, 40));
+          setRoom((current) => ({
+            ...current,
+            current_prompt: encodePrompt(nextPrompt),
+            current_type: "tiptoe",
+          }));
         } else if (action === "penalty") {
           const activePlayer = players[room.current_player_index % players.length];
           const playerId = activePlayer?.id || currentPlayerName();
@@ -2714,16 +2744,31 @@ export default function App() {
       } else if (action.startsWith("tiptoe_")) {
         const points = action === "tiptoe_correct" ? 1 : action === "tiptoe_forbidden" ? -1 : 0;
         const team = room.current_player_index % 2 === 0 ? "Team A" : "Team B";
+        if (action === "tiptoe_forbidden") playBuzzer();
+        const nextPrompt = pickSmartPrompt(room, "tiptoe", players.length);
         setActivityLog((entries) => [
           {
             type: "tiptoe_score",
             team,
             points,
+            result: action.replace("tiptoe_", ""),
             card: decodePrompt(room.current_prompt)?.target || promptText(decodePrompt(room.current_prompt)),
             at: new Date().toISOString(),
           },
           ...entries,
         ].slice(0, 40));
+        const { error } = await supabase
+          .from("rooms")
+          .update({ current_prompt: encodePrompt(nextPrompt), current_type: "tiptoe", current_prompt_id: nextPrompt.id || null })
+          .eq("code", roomCode)
+          .eq("current_player_index", room.current_player_index);
+        if (error) {
+          await supabase
+            .from("rooms")
+            .update({ current_prompt: encodePrompt(nextPrompt), current_type: "tiptoe" })
+            .eq("code", roomCode)
+            .eq("current_player_index", room.current_player_index);
+        }
       } else if (action === "penalty") {
         const activePlayer = players[room.current_player_index % players.length];
         const playerId = activePlayer?.id || currentPlayerName();
