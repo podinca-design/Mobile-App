@@ -251,6 +251,16 @@ function hostPlayerId(room, players) {
   return room?.host_player_id || players[0]?.id;
 }
 
+function closeKeyboard() {
+  if (document.activeElement && "blur" in document.activeElement) {
+    document.activeElement.blur();
+  }
+}
+
+function focusElement(id) {
+  window.setTimeout(() => document.getElementById(id)?.focus(), 80);
+}
+
 function inviteUrlFor(code, token) {
   const url = new URL(window.location.href);
   url.search = "";
@@ -321,7 +331,7 @@ function Button({ children, onClick, variant = "solid", accent = "#34D6B0", disa
   );
 }
 
-function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus, center, ariaLabel, id }) {
+function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus, center, ariaLabel, id, enterKeyHint = "done" }) {
   return (
     <input
       id={id}
@@ -329,7 +339,14 @@ function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus
       value={value}
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => e.key === "Enter" && onEnter && onEnter()}
+      enterKeyHint={enterKeyHint}
+      onKeyDown={(e) => {
+        if (["Enter", "NumpadEnter", "Go", "Done"].includes(e.key)) {
+          e.preventDefault();
+          closeKeyboard();
+          onEnter && onEnter();
+        }
+      }}
       placeholder={placeholder}
       aria-label={ariaLabel || placeholder}
       style={{
@@ -348,6 +365,25 @@ function TextField({ value, onChange, placeholder, maxLength, onEnter, autoFocus
         boxSizing: "border-box",
       }}
     />
+  );
+}
+
+function TextEntryRow({ children, actionLabel = "Done", onAction, disabled }) {
+  return (
+    <div style={entryRow}>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+      <button
+        type="button"
+        style={{ ...miniBtn, minHeight: 54, minWidth: 76, opacity: disabled ? 0.45 : 1 }}
+        disabled={disabled}
+        onClick={() => {
+          closeKeyboard();
+          onAction && onAction();
+        }}
+      >
+        {actionLabel}
+      </button>
+    </div>
   );
 }
 
@@ -421,17 +457,24 @@ function HomeScreen({ onCreate, onJoin, onInstall, installStatus, canInstall, ha
             >
               ROOM CODE
             </label>
-            <TextField
-              id="join-code-input"
-              value={joinCode}
-              onChange={(v) => setJoinCode(v.toUpperCase().slice(0, 4))}
-              placeholder="CODE"
-              ariaLabel="4-letter room code"
-              maxLength={4}
-              center
-              autoFocus
-              onEnter={() => joinCode.length === 4 && onJoin(joinCode)}
-            />
+            <TextEntryRow
+              actionLabel="Join"
+              disabled={joinCode.length !== 4}
+              onAction={() => joinCode.length === 4 && onJoin(joinCode)}
+            >
+              <TextField
+                id="join-code-input"
+                value={joinCode}
+                onChange={(v) => setJoinCode(v.toUpperCase().slice(0, 4))}
+                placeholder="CODE"
+                ariaLabel="4-letter room code"
+                maxLength={4}
+                center
+                autoFocus
+                enterKeyHint="go"
+                onEnter={() => joinCode.length === 4 && onJoin(joinCode)}
+              />
+            </TextEntryRow>
             <Button
               accent="#34D6B0"
               disabled={joinCode.length !== 4}
@@ -586,7 +629,26 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
         </div>
 
         <Field label={isSingleDevice ? "Host player" : "Your name"} htmlFor="create-name">
-          <TextField id="create-name" value={name} onChange={setName} placeholder="Full name" autoFocus maxLength={32} />
+          <TextEntryRow
+            actionLabel={isSingleDevice ? "Next" : "Done"}
+            disabled={!cleanDisplayName(name)}
+            onAction={() => {
+              if (isSingleDevice) focusElement("local-player-0");
+            }}
+          >
+            <TextField
+              id="create-name"
+              value={name}
+              onChange={setName}
+              placeholder="Full name"
+              autoFocus
+              maxLength={32}
+              enterKeyHint={isSingleDevice ? "next" : "done"}
+              onEnter={() => {
+                if (isSingleDevice) focusElement("local-player-0");
+              }}
+            />
+          </TextEntryRow>
         </Field>
 
         {isSingleDevice && (
@@ -594,14 +656,28 @@ function CreateRoomScreen({ playMode, onRoomCreated, onLocalRoomCreated, onBack 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {playerNames.map((playerName, index) => (
                 <div key={index} style={{ display: "flex", gap: 8 }}>
-                  <TextField
-                    value={playerName}
-                    onChange={(value) =>
-                      setPlayerNames((names) => names.map((item, itemIndex) => (itemIndex === index ? value : item)))
-                    }
-                    placeholder={`Player ${index + 2}`}
-                    maxLength={20}
-                  />
+                  <TextEntryRow
+                    actionLabel={index === playerNames.length - 1 ? "Done" : "Next"}
+                    onAction={() => {
+                      const nextId = index === playerNames.length - 1 ? "game-select-first" : `local-player-${index + 1}`;
+                      focusElement(nextId);
+                    }}
+                  >
+                    <TextField
+                      id={`local-player-${index}`}
+                      value={playerName}
+                      onChange={(value) =>
+                        setPlayerNames((names) => names.map((item, itemIndex) => (itemIndex === index ? value : item)))
+                      }
+                      placeholder={`Player ${index + 2}`}
+                      maxLength={32}
+                      enterKeyHint={index === playerNames.length - 1 ? "done" : "next"}
+                      onEnter={() => {
+                        const nextId = index === playerNames.length - 1 ? "game-select-first" : `local-player-${index + 1}`;
+                        focusElement(nextId);
+                      }}
+                    />
+                  </TextEntryRow>
                   {playerNames.length > 1 && (
                     <button
                       type="button"
@@ -869,7 +945,18 @@ function JoinRoomScreen({ code, inviteToken, onJoined, onBack }) {
           <h2 style={sectionTitle}>{inviteLabel ? `Welcome, ${inviteLabel}` : "What's your name?"}</h2>
         </div>
         <Field label="Your name" htmlFor="join-name">
-          <TextField id="join-name" value={name} onChange={setName} placeholder="Your first name" autoFocus maxLength={20} onEnter={handleJoin} />
+          <TextEntryRow actionLabel="Join" disabled={(!name.trim() && !inviteToken) || !ageConfirmed || busy} onAction={handleJoin}>
+            <TextField
+              id="join-name"
+              value={name}
+              onChange={setName}
+              placeholder="Your name"
+              autoFocus
+              maxLength={32}
+              enterKeyHint="go"
+              onEnter={handleJoin}
+            />
+          </TextEntryRow>
         </Field>
         <label style={checkRow}>
           <input
@@ -971,36 +1058,58 @@ function LobbyScreen({
         </div>
 
         {isSingleDevice && (
-          <div style={{ display: "flex", gap: 8 }}>
+          <TextEntryRow
+            actionLabel="Add"
+            disabled={!cleanDisplayName(localPlayerName) || players.length >= MAX_PLAYERS}
+            onAction={() => {
+              onAddLocalPlayer(localPlayerName);
+              setLocalPlayerName("");
+              focusElement("lobby-add-player");
+            }}
+          >
             <TextField
+              id="lobby-add-player"
               value={localPlayerName}
               onChange={setLocalPlayerName}
               placeholder="Add player"
-              maxLength={20}
+              maxLength={32}
               ariaLabel="Add player"
-            />
-            <button
-              type="button"
-              style={miniBtn}
-              disabled={!cleanDisplayName(localPlayerName) || players.length >= MAX_PLAYERS}
-              onClick={() => {
+              enterKeyHint="done"
+              onEnter={() => {
+                if (!cleanDisplayName(localPlayerName) || players.length >= MAX_PLAYERS) return;
                 onAddLocalPlayer(localPlayerName);
                 setLocalPlayerName("");
+                focusElement("lobby-add-player");
               }}
-            >
-              Add
-            </button>
-          </div>
+            />
+          </TextEntryRow>
         )}
-
         {!isSingleDevice && isHost && (
-          <TextField
-            value={inviteeName}
-            onChange={(value) => setInviteeName(cleanDisplayName(value, 32))}
-            placeholder="Invitee name"
-            maxLength={24}
-            ariaLabel="Invitee name"
-          />
+          <TextEntryRow
+            actionLabel="Invite"
+            disabled={!cleanDisplayName(inviteeName)}
+            onAction={() => {
+              onInvite(inviteeName);
+              setInviteeName("");
+              focusElement("invitee-name");
+            }}
+          >
+            <TextField
+              id="invitee-name"
+              value={inviteeName}
+              onChange={(value) => setInviteeName(cleanDisplayName(value, 32))}
+              placeholder="Invitee name"
+              maxLength={32}
+              ariaLabel="Invitee name"
+              enterKeyHint="done"
+              onEnter={() => {
+                if (!cleanDisplayName(inviteeName)) return;
+                onInvite(inviteeName);
+                setInviteeName("");
+                focusElement("invitee-name");
+              }}
+            />
+          </TextEntryRow>
         )}
         {!isSingleDevice && (
           <>
@@ -1449,8 +1558,9 @@ function Field({ label, children, htmlFor }) {
 function SegmentedControl({ options, value, onChange }) {
   return (
     <div style={{ display: "flex", background: "rgba(255,255,255,0.06)", borderRadius: 14, padding: 4 }}>
-      {options.map((opt) => (
+      {options.map((opt, index) => (
         <button
+          id={index === 0 ? "game-select-first" : undefined}
           key={opt.id}
           onClick={() => onChange(opt.id)}
           aria-pressed={value === opt.id}
@@ -1544,6 +1654,13 @@ const checkRow = {
   fontFamily: "'Manrope', sans-serif",
   fontSize: 13,
   lineHeight: 1.4,
+};
+
+const entryRow = {
+  display: "flex",
+  alignItems: "stretch",
+  gap: 10,
+  width: "100%",
 };
 
 // ---- Layout tokens --------------------------------------------------------
