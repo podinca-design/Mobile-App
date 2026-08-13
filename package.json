@@ -1,12 +1,14 @@
 {
   "name": "truth-dare-party",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "content:chunks": "node scripts/build-content-chunks.mjs",
     "validate:content": "node scripts/validate-content.mjs",
-    "build": "npm run validate:content && vite build",
+    "test": "node --test tests/*.test.mjs",
+    "build": "npm test && npm run validate:content && npm run content:chunks && vite build",
     "preview": "vite preview",
     "android:sync": "npm run build && cap sync android",
     "android:release": "npm run android:sync && cd android && gradlew.bat assembleRelease"
@@ -15,6 +17,7 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@supabase/supabase-js": "^2.45.4",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

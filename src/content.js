@@ -1,63 +1,41 @@
-import normalizedContent from "./data/afterparty-content.normalized.json";
+import manifest from "./data/content-chunks/manifest.json";
 
-export const CONTENT_SCHEMA_VERSION = normalizedContent.schema_version;
-
+export const CONTENT_SCHEMA_VERSION = manifest.schema_version;
 export const CONTENT = {
-  globalRules: {
-    adult_only: true,
-    minimum_age: "21+",
-    age_gate_required: true,
-    content_notice:
-      "This game contains adult-only flirtation, kissing, optional consensual touching, optional consensual clothing removal, optional consensual partial nudity, and alcohol-based penalties. Players must be 21+.",
-    consent_model: {
-      ask_once_rule:
-        "For any dare involving another player, the active player may ask once. If the other player says no, hesitates, or seems uncomfortable, the active player fails the dare and takes the listed penalty.",
-    },
-    penalty_tracking: {
-      enabled: true,
-      penalty_unit: "shots",
-      max_normal_penalties_per_player_per_round: 3,
-      on_fourth_penalty: {
-        rules: [
-          "No additional alcohol escalation.",
-          "No forced touching.",
-          "No forced kissing.",
-          "No forced nudity or exposure.",
-          "No recording or posting.",
-          "No humiliating, unsafe, or degrading consequence.",
-        ],
-      },
-    },
-    shot_safety: {
-      non_alcoholic_substitution_allowed: true,
-      substitution_text: "Players may substitute water, soda, juice, or any non-alcoholic drink at any time.",
-    },
-  },
-  categories: normalizedContent.categories.map((category) => ({
+  globalRules: manifest.globalRules,
+  categories: manifest.categories.map((category) => ({
     id: category.id,
     label: category.label,
     accent: category.color,
-    truths: normalizedContent.pools.truth_or_dare[category.id].truths,
-    dares: normalizedContent.pools.truth_or_dare[category.id].dares,
+    truths: [],
+    dares: [],
   })),
-  questionsMode: Object.fromEntries(
-    normalizedContent.categories.map((category) => [
-      category.id,
-      normalizedContent.pools.questions[category.id],
-    ]),
-  ),
+  questionsMode: {},
+};
+export const CONTENT_INDEX = new Map();
+const loaded = new Set();
+
+const loaders = {
+  mild: () => import("./data/content-chunks/mild.json"),
+  bold: () => import("./data/content-chunks/bold.json"),
+  couples: () => import("./data/content-chunks/couples.json"),
+  spicy: () => import("./data/content-chunks/spicy.json"),
+  wild: () => import("./data/content-chunks/wild.json"),
 };
 
-export const CONTENT_INDEX = new Map();
-
-for (const category of CONTENT.categories) {
-  for (const prompt of [...category.truths, ...category.dares]) {
-    CONTENT_INDEX.set(prompt.id, prompt);
-  }
+export async function ensureContentCategory(categoryId) {
+  const id = loaders[categoryId] ? categoryId : "mild";
+  if (loaded.has(id)) return;
+  const module = await loaders[id]();
+  const chunk = module.default;
+  const category = CONTENT.categories.find((item) => item.id === id);
+  category.truths = chunk.truths;
+  category.dares = chunk.dares;
+  CONTENT.questionsMode[id] = chunk.questions;
+  [...chunk.truths, ...chunk.dares, ...chunk.questions].forEach((prompt) => CONTENT_INDEX.set(prompt.id, prompt));
+  loaded.add(id);
 }
 
-for (const prompts of Object.values(CONTENT.questionsMode)) {
-  for (const prompt of prompts) {
-    CONTENT_INDEX.set(prompt.id, prompt);
-  }
+export function isContentCategoryLoaded(categoryId) {
+  return loaded.has(categoryId);
 }
