@@ -2,7 +2,15 @@
   "app": "Afterparty",
   "version": "1.1.3",
   "androidVersionCode": 5,
-  "releaseLine": "ui-sync-production",
+  "applicationId": "com.podinca.afterparty",
+  "releaseLine": "ui-sync-production-firetv-live-shell",
+  "apk": {
+    "filename": "afterparty-firetv.apk",
+    "sha256": "8330d5c82ad219f259cf5c55093093cee064ee9e72c1643dfdc4feb35485843a",
+    "signingCertificateSha256": "2eee3e9ee3bcf53f050361836b741d42a62156684e84e0784ab66f1e8d99beb1",
+    "stableDownloadUrl": "https://truth-dare-party-demo.vercel.app/download/",
+    "distribution": "signed-firetv-live-shell"
+  },
   "requiredSetupFlow": [
     "game",
     "play_format",
