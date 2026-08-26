@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbzXWRYSwReHDzVjd2Nlcl_GSYVBygHvTcYk6i-TDDoMUFdIJmaH7IM751tj8IrJXoXeCQ/exec";
 type ReviewRecord = {
   payload?: {
     kind?: string;
@@ -34,6 +32,10 @@ function supabaseConfig() {
   return { url, key };
 }
 
+function webhookSecret() {
+  return process.env.TP_WEBHOOK_SHARED_SECRET || process.env.TOUCHPOINT_WEBHOOK_SHARED_SECRET || "";
+}
+
 async function loadMirrorRecord(session: string, token: string) {
   const { url, key } = supabaseConfig();
   if (!url || !key) return null;
@@ -43,7 +45,7 @@ async function loadMirrorRecord(session: string, token: string) {
     { headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: "no-store" }
   );
   if (!response.ok) return null;
-  const records = await response.json().catch(() => []) as ReviewRecord[];
+  const records = (await response.json().catch(() => [])) as ReviewRecord[];
   const baseline = records.find((record) => record.payload?.kind === "touchpoint_csp_review_baseline");
   const metadata = baseline?.payload || {};
   if (!baseline || !metadata.tokenHash || !metadata.review) return null;
@@ -58,17 +60,18 @@ function mergedReview(metadata: NonNullable<ReviewRecord["payload"]>) {
   return {
     ...baseline,
     ...latest,
-    coverage: latest.coverage || baseline.coverage || []
+    coverage: (latest as Record<string, any>).coverage || (baseline as Record<string, any>).coverage || []
   };
 }
 
 async function loadFromAppsScript(session: string, token: string) {
-  const endpoint = process.env.TOUCHPOINT_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
+  const endpoint = process.env.TOUCHPOINT_APPS_SCRIPT_URL || "";
+  if (!endpoint) return null;
   const response = await fetch(
     `${endpoint}?action=loadCspReview&session=${encodeURIComponent(session)}&token=${encodeURIComponent(token)}`,
     { cache: "no-store" }
   );
-  const data = await response.json().catch(() => null) as { status?: string; review?: Record<string, unknown> } | null;
+  const data = (await response.json().catch(() => null)) as { status?: string; review?: Record<string, unknown> } | null;
   return response.ok && data?.status === "success" && data.review ? data.review : null;
 }
 
@@ -76,21 +79,29 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const session = url.searchParams.get("session") || "";
   const token = url.searchParams.get("token") || "";
-  if (!session || !token) return NextResponse.json({ ok: false, message: "Missing review credentials." }, { status: 400 });
+  if (!session || !token) {
+    return NextResponse.json({ ok: false, message: "Missing review credentials." }, { status: 400 });
+  }
 
   try {
     const review = await loadFromAppsScript(session, token).catch(() => null);
     if (review) return NextResponse.json({ ok: true, review }, { headers: { "Cache-Control": "no-store" } });
     const mirror = await loadMirrorRecord(session, token);
     if (!mirror) return NextResponse.json({ ok: false, message: "Review link unavailable." }, { status: 403 });
-    return NextResponse.json({ ok: true, review: mergedReview(mirror.metadata) }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      { ok: true, review: mergedReview(mirror.metadata), storage: "secure-mirror-read" },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch {
     return NextResponse.json({ ok: false, message: "Unable to load this review." }, { status: 502 });
   }
 }
 
 async function saveToAppsScript(body: Record<string, unknown>) {
-  const endpoint = process.env.TOUCHPOINT_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
+  const secret = webhookSecret();
+  if (!secret) return false;
+  const endpoint = process.env.TOUCHPOINT_APPS_SCRIPT_URL || "";
+  if (!endpoint) return false;
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -99,18 +110,20 @@ async function saveToAppsScript(body: Record<string, unknown>) {
       review_session_id: body.session,
       review_token: body.token,
       snapshot: body.snapshot,
-      advisor_notes: body.advisorNotes || ""
+      advisor_notes: body.advisorNotes || "",
+      webhook_token: secret
     }),
     cache: "no-store"
   });
-  const data = await response.json().catch(() => null) as { ok?: boolean } | null;
-  return response.ok && data?.ok;
+  const data = (await response.json().catch(() => null)) as { ok?: boolean; status?: string } | null;
+  return response.ok && data?.ok === true;
 }
 
 async function saveToMirror(session: string, token: string, snapshot: Record<string, unknown>, advisorNotes: string) {
   const mirror = await loadMirrorRecord(session, token);
   if (!mirror) return false;
   const { url, key } = supabaseConfig();
+  if (!url || !key) return false;
   const createdAt = new Date().toISOString();
   const metadata = {
     ...mirror.metadata,
@@ -141,8 +154,14 @@ async function saveToMirror(session: string, token: string, snapshot: Record<str
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body || typeof body.session !== "string" || typeof body.token !== "string" || !body.snapshot || typeof body.snapshot !== "object") {
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  if (
+    !body ||
+    typeof body.session !== "string" ||
+    typeof body.token !== "string" ||
+    !body.snapshot ||
+    typeof body.snapshot !== "object"
+  ) {
     return NextResponse.json({ ok: false, message: "Invalid review save request." }, { status: 400 });
   }
 
@@ -153,10 +172,28 @@ export async function POST(request: Request) {
       body.token,
       body.snapshot as Record<string, unknown>,
       typeof body.advisorNotes === "string" ? body.advisorNotes : ""
-    );
-    if (!savedToGoogle && !savedToMirror) return NextResponse.json({ ok: false, message: "Unable to save review." }, { status: 502 });
-    return NextResponse.json({ ok: true, storage: savedToGoogle ? (savedToMirror ? "google-and-mirror" : "google") : "secure-mirror" });
+    ).catch(() => false);
+
+    if (!savedToGoogle) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: savedToMirror
+            ? "Your review was preserved in the secure recovery mirror, but the authoritative workbook save did not confirm. Please retry."
+            : "Unable to save review.",
+          storage: savedToMirror ? "mirror-degraded" : "none",
+          recoveryStored: savedToMirror
+        },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      storage: savedToMirror ? "google-and-mirror" : "google",
+      degraded: false
+    });
   } catch {
-    return NextResponse.json({ ok: false, message: "Unable to save review." }, { status: 502 });
+    return NextResponse.json({ ok: false, message: "Unable to save this review." }, { status: 502 });
   }
 }
