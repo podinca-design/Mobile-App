@@ -1595,6 +1595,7 @@ function GameScreen({
   onLeave,
   onInvite,
   onEndGame,
+  onNewGame,
   onBackToLobby,
   onPauseGame,
   onResumeGame,
@@ -1922,7 +1923,8 @@ function GameScreen({
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <Button variant="ghost" disabled={busy} onClick={onBackToLobby}>Lobby</Button>
-              <Button variant="outline" accent="#FF5A4E" disabled={busy} onClick={onEndGame}>End for everyone</Button>
+              <Button variant="outline" accent="#FF5A4E" disabled={busy} onClick={onEndGame}>Reset game</Button>
+              <Button accent="#34D6B0" disabled={busy} onClick={onNewGame}>New Game</Button>
             </div>
           </div>
         )}
@@ -2781,7 +2783,7 @@ export default function App() {
   }
 
   async function handleEndGame() {
-    if (actionInFlight) return;
+    if (actionInFlight || !window.confirm("Reset this game for everyone? Scores, turns, and current prompts will be cleared.")) return;
     setActionInFlight(true);
     try {
       if (room?.play_mode === "single_device") {
@@ -2791,19 +2793,40 @@ export default function App() {
           current_player_index: 0,
           current_prompt: null,
           current_type: null,
+          round_number: 1,
+          turn_counter: 0,
+          state_version: Number(current.state_version || 0) + 1,
         }));
         setRoundPenaltyCounts({});
+        setActivityLog([]);
         setView("lobby");
         return;
       }
-      await supabase
+      const { error } = await supabase
         .from("rooms")
-        .update({ status: "lobby", current_player_index: 0, current_prompt: null, current_type: null })
+        .update({ status: "lobby", current_player_index: 0, current_player_id: playablePlayers(players)[0]?.id || null, current_prompt: null, current_type: null, round_number: 1, turn_counter: 0, state_version: Number(room.state_version || 0) + 1 })
         .eq("code", roomCode);
+      if (error) { window.alert(`Unable to reset game: ${error.message}`); return; }
+      setRoundPenaltyCounts({});
+      setActivityLog([]);
       setView("lobby");
     } finally {
       setActionInFlight(false);
     }
+  }
+
+  async function handleNewGame() {
+    if (actionInFlight || !window.confirm("Start a completely new game? You will leave the current room.")) return;
+    if (room?.play_mode !== "single_device" && room && hostPlayerId(room, players) === me?.id) {
+      const { error } = await supabase.from("rooms").update({ status: "lobby", current_prompt: null, current_type: null }).eq("code", roomCode);
+      if (error) { window.alert(`Unable to end current game: ${error.message}`); return; }
+    }
+    try { localStorage.removeItem(LOCAL_GAME_KEY); } catch (e) { /* storage unavailable */ }
+    setRoundPenaltyCounts({});
+    setActivityLog([]);
+    handleLocalExit();
+    setHasSavedLocal(false);
+    setView("create");
   }
 
   function handleBackToLobby() {
@@ -3432,6 +3455,7 @@ export default function App() {
         onLeave={handleLeave}
         onInvite={handleInvite}
         onEndGame={handleEndGame}
+        onNewGame={handleNewGame}
         onBackToLobby={handleBackToLobby}
         onPauseGame={handlePauseGame}
         onResumeGame={handleResumeGame}
